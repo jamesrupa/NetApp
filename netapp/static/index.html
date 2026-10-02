@@ -4,11 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NetApp</title>
+  <link rel="icon" href="/static/brand/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/brand/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <meta name="theme-color" content="#060a12">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp<span class="brand-sub">Network Diagnostics</span></div>
+    <div class="brand"><svg class="brand-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <circle cx="32" cy="32" r="27" stroke="currentColor" stroke-width="3" stroke-opacity=".35"/>
+  <circle cx="32" cy="32" r="17" stroke="currentColor" stroke-width="3" stroke-opacity=".6"/>
+  <path d="M32 32 L59 32 A27 27 0 0 0 51 13 Z" fill="currentColor" fill-opacity=".3"/>
+  <line x1="32" y1="32" x2="51" y2="13" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M32 32 L19 42 L42 45 Z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-opacity=".75"/>
+  <circle cx="19" cy="42" r="3.6" fill="currentColor"/>
+  <circle cx="42" cy="45" r="3.6" fill="currentColor"/>
+  <circle cx="32" cy="32" r="5" fill="currentColor"/>
+</svg>NetApp<span class="brand-sub">Network Diagnostics</span></div>
     <div class="sys-strip" aria-label="System status">
       <span class="sys-item"><span class="sys-dot" id="sys-dot"></span><span id="sys-state">Connecting…</span></span>
       <span class="sys-item hide-sm"><span class="sys-key">Host</span><span id="sys-host">–</span></span>
@@ -22,8 +35,10 @@
   <div class="layout">
   <aside class="sidebar">
     <nav class="tabs" role="tablist" aria-label="Tools">
+      <div class="nav-group">Home</div>
+      <button role="tab" data-tab="dashboard">Dashboard</button>
       <div class="nav-group">Diagnose</div>
-      <button role="tab" data-tab="health" aria-selected="true">Health Check</button>
+      <button role="tab" data-tab="health">Health Check</button>
       <div class="nav-group">Network</div>
       <button role="tab" data-tab="overview">Overview</button>
       <button role="tab" data-tab="ip">Public IP</button>
@@ -40,8 +55,52 @@
 
   <main>
     <div class="crumb" id="crumb" aria-hidden="true"></div>
+    <!-- Dashboard ----------------------------------------------------------------->
+    <section id="tab-dashboard" class="panel" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="muted">Your network at a glance: live connection quality plus your latest results.</p>
+        </div>
+        <div class="live-pill" id="dash-live"><span class="sys-dot"></span><span>Live</span></div>
+      </div>
+      <div class="tiles dash-tiles" id="dash-tiles"></div>
+      <div class="dash-grid">
+        <div class="card">
+          <div class="card-head">
+            <h2>Live latency</h2>
+            <div class="legend"><span><i class="key key-1"></i>Router</span><span><i class="key key-2"></i>Internet</span></div>
+          </div>
+          <div class="chart" id="dash-latency"></div>
+          <p class="sub chart-note" id="dash-latency-note">Measuring…</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Wi-Fi signal</h2><span class="sub" id="dash-wifi-name"></span></div>
+          <div class="dial" id="dash-dial"></div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="card">
+          <div class="card-head"><h2>Top recommendations</h2><button class="link" type="button" data-goto="health">Health Check ›</button></div>
+          <div id="dash-recs"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Quick actions</h2></div>
+          <div class="quick-actions">
+            <button class="btn primary" type="button" data-action="quick">Quick scan</button>
+            <button class="btn" type="button" data-action="full">Full scan</button>
+            <button class="btn" type="button" data-action="speed">Speed test</button>
+            <button class="btn" type="button" data-action="scan">Scan devices</button>
+            <button class="btn" type="button" data-action="wifi">Scan Wi-Fi</button>
+            <button class="btn" type="button" data-action="monitor">Walk-around monitor</button>
+          </div>
+          <dl class="facts" id="dash-facts"></dl>
+        </div>
+      </div>
+    </section>
+
     <!-- Health check -------------------------------------------------------------->
-    <section id="tab-health" class="panel" role="tabpanel">
+    <section id="tab-health" class="panel" role="tabpanel" hidden>
       <div class="panel-head">
         <div>
           <h1>Health Check</h1>
@@ -63,7 +122,7 @@
       </div>
 
       <div class="card" id="hc-progress" hidden>
-        <div class="card-head"><h2 id="hc-progress-title">Scanning…</h2></div>
+        <div class="card-head"><h2 id="hc-progress-title">Scanning…</h2><span id="hc-radar"></span></div>
         <ol class="steps" id="hc-steps"></ol>
       </div>
 
@@ -156,7 +215,7 @@
         <button class="btn primary" id="scan-start" type="submit">Scan</button>
       </form>
       <div class="progress" aria-hidden="true"><div id="scan-bar"></div></div>
-      <p class="status" id="scan-status">Pick a network and press <b>Scan</b>.</p>
+      <div class="status-row"><span id="scan-radar"></span><p class="status" id="scan-status">Pick a network and press <b>Scan</b>.</p></div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>IP address</th><th>Hostname</th><th>MAC</th><th>Detected by</th><th class="num">Response</th><th>Ports</th></tr></thead>
@@ -235,7 +294,7 @@
         internet sees, because some routers loop the request back internally. To see exactly what's exposed, scan from
         another connection (e.g. a phone hotspot).</p>
       <div class="progress" aria-hidden="true"><div id="nmap-bar"></div></div>
-      <p class="status" id="nmap-status">Choose a target and scan type, then press <b>Run Nmap</b>.</p>
+      <div class="status-row"><span id="nmap-radar"></span><p class="status" id="nmap-status">Choose a target and scan type, then press <b>Run Nmap</b>.</p></div>
       <p class="mono sub" id="nmap-command"></p>
       <div id="nmap-findings"></div>
       <div id="nmap-results"></div>
@@ -353,6 +412,7 @@
   <script src="/static/nmap.js"></script>
   <script src="/static/monitor.js"></script>
   <script src="/static/traffic.js"></script>
+  <script src="/static/dashboard.js"></script>
   <script src="/static/main.js"></script>
 </body>
 </html>

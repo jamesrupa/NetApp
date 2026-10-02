@@ -7,6 +7,7 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 
 | Tool | What it does |
 |---|---|
+| **Dashboard** | The home screen: live connection status and latency (router, internet, DNS), a live Wi-Fi signal dial, and your latest speed test, health score, device count and top recommendations, with one-click quick actions. |
 | **Health Check** | One-click **Quick scan** (speed test) or **Full scan** (speed test, Wi-Fi signal and channel analysis, device discovery and an open-port security check). Ends with a health score and a prioritized list of recommended changes. Results export as HTML/JSON/CSV. |
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
 | **Speed Test** | Ping, jitter, download, upload and packet loss using the official **Speedtest.net (Ookla) CLI**, with a server picker and a shareable result link. Falls back to Cloudflare's speed-test endpoints when the CLI isn't installed. Live throughput chart. |
@@ -32,6 +33,20 @@ Your browser opens at <http://localhost:8765>. Options: `--port 9000` and `--no-
 `--host 0.0.0.0` exposes the dashboard to other machines on your network, so use it with care.
 
 You can also run `pip install -e .` to get a `netapp` command.
+
+### Desktop app
+
+```bash
+python -m netapp --app            # open NetApp in its own window instead of a browser tab
+python -m netapp --install-app    # add a NetApp launcher with its icon
+python -m netapp --uninstall-app  # remove the launcher again
+```
+
+`--install-app` creates **NetApp.app** in `~/Applications` on macOS (open it from Launchpad or Spotlight and drag it to
+the Dock), Desktop and Start-menu shortcuts on Windows, or an app-menu entry on Linux. The launcher uses the Python
+environment you ran it from, so `git pull` updates the app too. The window uses `pywebview` (installed by
+`requirements.txt` on macOS and Windows; on Linux also install GTK WebKit). Logs from the macOS app go to
+`~/Library/Logs/NetApp.log`.
 
 ### Platform notes
 
@@ -110,6 +125,9 @@ netapp/
     wifimonitor.py   # live connection sampling, roam & sticky-client detection
     macos.py         # macOS Location permission + CoreWLAN fallbacks
     macos_helper.py  # builds/drives the "NetApp Wi-Fi Helper" app (Swift source in netapp/macos_helper/)
+    dashboard.py     # remembered "last results" + live latency/Wi-Fi stream for the home screen
+  desktop_app.py     # native window (pywebview) and the --install-app launcher
+  desktop/           # app icons (.icns / .ico / .png), built by scripts/build_icons.py
     traffic.py       # tshark capture + plain-English traffic analysis
   static/            # index.html, styles.css, app.js + one script per tool (no build step)
 tests/               # parser tests with sample OS output, speed-test & API tests

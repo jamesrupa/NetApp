@@ -120,6 +120,7 @@ $("#nmap-form").addEventListener("submit", (e) => {
   nmapLive.clear();
   bar.style.width = "0";
   setStatus(status, "Starting Nmap…");
+  $("#nmap-radar").innerHTML = radarSVG(36);
   let failed = false;
   nmapRun = stream(`/api/nmap/scan?${params}`, (ev) => {
     if (ev.type === "start") $("#nmap-command").textContent = `$ ${ev.command}${ev.resolved ? `   (${ev.resolved})` : ""}`;
@@ -137,6 +138,7 @@ $("#nmap-form").addEventListener("submit", (e) => {
     }
     if (ev.type === "error") { failed = true; setStatus(status, esc(ev.message), true); }
   }, (err) => {
+    $("#nmap-radar").innerHTML = "";
     $("#nmap-start").hidden = false;
     $("#nmap-stop").hidden = true;
     nmapRun = null;

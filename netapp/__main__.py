@@ -24,9 +24,26 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser window")
     parser.add_argument("--reports-dir", help="where full-scan reports are saved (default: ~/NetApp-Reports)")
+    parser.add_argument("--app", action="store_true", help="open NetApp in its own desktop window")
+    parser.add_argument("--install-app", action="store_true",
+                        help="add a NetApp launcher (macOS Applications / Windows Start menu / Linux app menu)")
+    parser.add_argument("--uninstall-app", action="store_true", help="remove that launcher")
     args = parser.parse_args()
     if args.reports_dir:
         os.environ["NETAPP_REPORTS_DIR"] = os.path.abspath(args.reports_dir)
+
+    from . import desktop_app
+
+    if args.install_app:
+        print(desktop_app.install_launcher())
+        return
+    if args.uninstall_app:
+        print(desktop_app.uninstall_launcher())
+        return
+    if args.app:
+        if desktop_app.run_window(args.host, args.port):
+            return
+        print(desktop_app.WEBVIEW_HELP, "Opening NetApp in your browser instead.", file=sys.stderr)
 
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     print(f"NetApp running at {url}  (Ctrl+C to stop)")

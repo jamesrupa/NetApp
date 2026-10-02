@@ -30,6 +30,62 @@ function fmtBytes(n) {
   return `${n.toFixed(n >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+// --- motion helpers (all respect the OS "reduce motion" setting) -------------------------
+
+const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Count a number up (or down) to its new value: el.textContent animates from its current number. */
+function animateNumber(el, to, { decimals = 0, duration = 700, suffix = "" } = {}) {
+  if (!el) return;
+  if (to == null || Number.isNaN(to)) { el.textContent = "–"; return; }
+  const from = parseFloat(String(el.textContent).replace(/,/g, "")) || 0;
+  const fmt = (v) => (decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString()) + suffix;
+  if (reduceMotion() || from === to) { el.textContent = fmt(to); return; }
+  const start = performance.now();
+  cancelAnimationFrame(el._anim);
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / duration);
+    const eased = 1 - (1 - k) ** 3;
+    el.textContent = fmt(from + (to - from) * eased);
+    if (k < 1) el._anim = requestAnimationFrame(step);
+  };
+  el._anim = requestAnimationFrame(step);
+}
+
+/** Type text out character by character (used for the breadcrumb). */
+function typeText(el, text) {
+  clearInterval(el._typing);
+  if (reduceMotion()) { el.textContent = text; return; }
+  let i = 0;
+  el.textContent = "";
+  el._typing = setInterval(() => {
+    i += 2;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length) clearInterval(el._typing);
+  }, 12);
+}
+
+/** A small animated radar (shown while a scan runs). */
+function radarSVG(size = 44) {
+  return `<svg class="radar" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="32" cy="32" r="29"/><circle cx="32" cy="32" r="19"/><circle cx="32" cy="32" r="9"/>
+    <path d="M32 3v58M3 32h58" class="radar-cross"/>
+    <g class="radar-sweep"><path d="M32 32 L32 3 A29 29 0 0 1 56 16 Z"/></g>
+    <circle class="radar-blip b1" cx="44" cy="22" r="2.2"/><circle class="radar-blip b2" cx="19" cy="41" r="2.2"/>
+    <circle class="radar-blip b3" cx="40" cy="47" r="2.2"/>
+  </svg>`;
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago". */
+function timeAgo(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} day${s >= 172800 ? "s" : ""} ago`;
+}
+
 const SEV = {
   critical: { icon: "✖", label: "Critical" },
   warning: { icon: "▲", label: "Warning" },
@@ -58,10 +114,16 @@ function setStatus(el, text, isError = false) {
 // --- tabs & theme ---------------------------------------------------------------------
 
 const loaders = {};
+// Tabs can register a cleanup for when you navigate away (e.g. the dashboard stops its live probes).
+const leavers = {};
+let currentTab = null;
+
 function showTab(name) {
+  if (currentTab && currentTab !== name) leavers[currentTab]?.();
+  currentTab = name;
   document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
   document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
-  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);  // Back/Forward move between tools
   loaders[name]?.();
   updateCrumb(name);
   redrawCharts();
@@ -76,6 +138,7 @@ document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("cli
 
 // Sidebar icons (simple 16px line drawings).
 const ICONS = {
+  dashboard: '<rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V14"/>',
   health: '<path d="M2 8h3l2-4 2 8 2-4h3"/>',
   overview: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
   ip: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2 2 2 9 0 11M8 2.5c-2 2-2 9 0 11"/>',
@@ -98,7 +161,7 @@ function updateCrumb(name) {
   let group = btn?.previousElementSibling;
   while (group && !group.classList.contains("nav-group")) group = group.previousElementSibling;
   const crumb = $("#crumb");
-  if (crumb && btn) crumb.textContent = ["NetApp", group?.textContent, btn.textContent].filter(Boolean).join("  //  ");
+  if (crumb && btn) typeText(crumb, ["NetApp", group?.textContent, btn.textContent].filter(Boolean).join("  //  "));
 }
 
 // Top-bar status strip: host, local IP, gateway and a clock.
@@ -444,7 +507,7 @@ function applySpeedEvent(ev) {
       drawSpeed();
       return `${SPEED_LABELS[ev.phase]} ${ev.mbps.toFixed(1)} Mbps`;
     }
-    if (ev.type === "result") el.textContent = ev.mbps.toFixed(1);
+    if (ev.type === "result") animateNumber(el, ev.mbps, { decimals: 1, duration: 500 });
   }
   if (ev.type === "start") return SPEED_LABELS[ev.phase] || null;
   if (ev.phase === "done") {
@@ -548,8 +611,11 @@ function deviceKind(ports) {
 
 const openLink = (u, text) => `<a class="btn small" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(u.url)} in a new tab">${text} ↗</a>`;
 
+const shownHosts = new Set();  // rows already on screen; new ones slide in
+
 function renderHosts() {
   const rows = [...hosts.values()].sort((a, b) => ipKey(a.ip) - ipKey(b.ip));
+  if (!hosts.size) shownHosts.clear();
   $("#scan-rows").innerHTML = rows.map((h) => {
     const tags = [h.is_gateway && "Gateway", h.is_self && "This device"].filter(Boolean)
       .map((t) => `<span class="badge accent">${t}</span>`).join("");
@@ -566,7 +632,9 @@ function renderHosts() {
     const ipCell = urls.length
       ? `<a class="ip-link" href="${esc(urls[0].url)}" target="_blank" rel="noopener noreferrer" title="Open its web interface">${esc(h.ip)} ↗</a>`
       : `<b>${esc(h.ip)}</b>`;
-    return `<tr>
+    const isNew = !shownHosts.has(h.ip);
+    shownHosts.add(h.ip);
+    return `<tr${isNew ? ' class="row-new"' : ""}>
       <td class="mono">${ipCell} ${tags}${kind ? ` <span class="badge">${kind}</span>` : ""}</td>
       <td>${esc(h.hostname || "–")}</td>
       <td class="mono">${mac}</td>
@@ -598,6 +666,7 @@ $("#scan-form").addEventListener("submit", (e) => {
   const cidr = $("#scan-cidr").value.trim() || $("#scan-net").value;
   btn.disabled = true;
   hosts.clear();
+  $("#scan-radar").innerHTML = radarSVG(36);
   renderHosts();
   bar.style.width = "0";
   let failed = false;
@@ -607,9 +676,13 @@ $("#scan-form").addEventListener("submit", (e) => {
     if (ev.type === "start") setStatus(status, `Scanning ${esc(ev.network)} (${ev.total} addresses)…`);
     if (ev.type === "progress") bar.style.width = `${(100 * ev.done) / ev.total}%`;
     if (ev.type === "host") { hosts.set(ev.host.ip, { ...hosts.get(ev.host.ip), ...ev.host }); renderHosts(); }
-    if (ev.type === "done") setStatus(status, `Found ${ev.hosts_found} device${ev.hosts_found === 1 ? "" : "s"} on ${esc(ev.network)} in ${ev.seconds}s.`);
+    if (ev.type === "done") {
+      setStatus(status, `Found <b class="found-count">0</b> device${ev.hosts_found === 1 ? "" : "s"} on ${esc(ev.network)} in ${ev.seconds}s.`);
+      animateNumber(status.querySelector(".found-count"), ev.hosts_found, { duration: 600 });
+    }
     if (ev.type === "error") { failed = true; setStatus(status, esc(ev.message), true); }
   }, (err) => {
+    $("#scan-radar").innerHTML = "";
     btn.disabled = false;
     bar.style.width = failed || err ? "0" : "100%";
     if (err && !failed) setStatus(status, esc(err.message), true);
@@ -779,10 +852,10 @@ function scoreTile(sc) {
     <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
       <circle class="track" cx="38" cy="38" r="${r}" fill="none" stroke-width="8"/>
       <circle class="value" cx="38" cy="38" r="${r}" fill="none" stroke-width="8"
-        style="stroke: var(--${tone})" stroke-dasharray="${(c * sc.value) / 100} ${c}"/>
+        style="stroke: var(--${tone})" stroke-dasharray="0 ${c}" data-target="${(c * sc.value) / 100} ${c}"/>
     </svg>
     <div><div class="tile-label">Health score</div>
-      <div class="tile-value">${sc.value}<small>/ 100</small></div>
+      <div class="tile-value"><span class="score-num">0</span><small>/ 100</small></div>
       <div class="tile-note t-${tone}">${esc(sc.grade)}</div></div>
   </div>`;
 }
@@ -800,6 +873,12 @@ function renderReport(rep) {
   $("#hc-score").innerHTML = scoreTile(sc) + [
     ["critical", "Critical issues"], ["warning", "Warnings"], ["good", "Looks good"],
   ].map(([k, label]) => `<div class="tile"><div class="tile-label">${SEV[k].icon} ${label}</div><div class="tile-value">${n[k]}</div></div>`).join("");
+  // Animate: the ring fills and the score counts up.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const ring = $("#hc-score .score-ring .value");
+    ring?.setAttribute("stroke-dasharray", ring.dataset.target);
+    animateNumber($("#hc-score .score-num"), sc.value, { duration: 900 });
+  }));
 
   $("#hc-filters").innerHTML = [["all", `All (${rep.recommendations.length})`],
     ...Object.keys(SEV).filter((k) => n[k]).map((k) => [k, `${SEV[k].label} (${n[k]})`])]
@@ -836,6 +915,7 @@ function startDiagnosis(mode) {
   $("#hc-results").hidden = true;
   $("#hc-progress").hidden = false;
   $("#hc-progress-title").textContent = mode === "full" ? "Running full scan…" : "Running quick scan…";
+  $("#hc-radar").innerHTML = radarSVG(40);
   let steps = [];
   const step = (id) => steps.find((st) => st.id === id);
   const update = (id, patch) => { Object.assign(step(id), patch); renderSteps(steps); };
@@ -875,6 +955,7 @@ function startDiagnosis(mode) {
       $("#hc-progress-title").textContent = `Scan failed: ${ev.message}`;
     }
   }, (err) => {
+    $("#hc-radar").innerHTML = "";
     buttons.forEach((b) => { b.disabled = false; });
     if (err) $("#hc-progress-title").textContent = err.message;
   });

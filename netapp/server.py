@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import diagnose, ipinfo, macos, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
+from .tools import dashboard, diagnose, ipinfo, macos, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -64,6 +64,16 @@ async def public_ip():
         raise HTTPException(502, f"Could not determine public IP: {exc}") from exc
 
 
+@app.get("/api/dashboard")
+async def dashboard_summary():
+    return await dashboard.summary()
+
+
+@app.get("/api/dashboard/live")
+async def dashboard_live(interval: float = Query(2.0, ge=1, le=30)):
+    return sse(dashboard.live(interval=interval))
+
+
 @app.get("/api/speedtest")
 async def run_speedtest(
     engine: str = Query("auto", pattern="^(auto|ookla|cloudflare)$"),
@@ -71,7 +81,12 @@ async def run_speedtest(
     duration: float = Query(8.0, ge=2, le=30),
     streams: int = Query(4, ge=1, le=16),
 ):
-    return sse(speedtest.run(engine, server_id, duration=duration, streams=streams))
+    async def run():
+        async for ev in speedtest.run(engine, server_id, duration=duration, streams=streams):
+            if ev.get("phase") == "done":
+                dashboard.record_speed(ev)
+            yield ev
+    return sse(run())
 
 
 @app.get("/api/speedtest/status")
@@ -88,7 +103,12 @@ async def speedtest_servers():
 async def scan(cidr: str | None = None, timeout: float = Query(1.0, ge=0.2, le=5)):
     # Validation errors (bad CIDR, public range, too large) arrive as an "error" event,
     # since EventSource can't read the body of an HTTP error response.
-    return sse(netscan.scan_network(cidr, timeout=timeout))
+    async def run():
+        async for ev in netscan.scan_network(cidr, timeout=timeout):
+            if ev["type"] == "done":
+                dashboard.record_devices(ev["network"], ev["hosts_found"])
+            yield ev
+    return sse(run())
 
 
 @app.get("/api/ports")
@@ -185,6 +205,11 @@ async def _diagnose_and_store(mode: str) -> AsyncIterator[dict]:
     async for ev in diagnose.run_diagnosis(mode):
         if ev["type"] == "report":
             rep = ev["report"]
+            dashboard.record_health(rep)
+            if rep.get("speed") and not rep["speed"].get("error"):
+                dashboard.record_speed(rep["speed"])
+            if rep.get("network") and not rep["network"].get("error"):
+                dashboard.record_devices(rep["network"].get("network"), len(rep["network"].get("hosts", [])))
             REPORTS[rep["id"]] = rep
             while len(REPORTS) > MAX_REPORTS:
                 REPORTS.pop(next(iter(REPORTS)))

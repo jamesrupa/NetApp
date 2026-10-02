@@ -221,7 +221,7 @@ def test_api_full_scan_saves_and_exports(stub_tools, monkeypatch, tmp_path):
     events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith('data: {"')]
     rep = events[-1]["report"]
     assert len(rep["saved_files"]) == 2
-    assert sorted(p.suffix for p in tmp_path.iterdir()) == [".html", ".json"]
+    assert sorted(p.suffix for p in tmp_path.iterdir() if not p.name.startswith(".")) == [".html", ".json"]
 
     r = client.get(f"/api/reports/{rep['id']}/export", params={"format": "devices.csv"})
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
@@ -236,4 +236,4 @@ def test_quick_scan_is_not_saved(stub_tools, monkeypatch, tmp_path):
     client = TestClient(server.app)
     with client.stream("GET", "/api/diagnose", params={"mode": "quick"}) as r:
         body = r.read().decode()
-    assert "saved_files" not in body and not list(tmp_path.iterdir())
+    assert "saved_files" not in body and not [p for p in tmp_path.iterdir() if not p.name.startswith(".")]
