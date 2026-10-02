@@ -162,7 +162,10 @@ def _corewlan() -> dict | None:
         return None
     ch = iface.wlanChannel()
     band = {1: "2.4 GHz", 2: "5 GHz", 3: "6 GHz"}.get(ch.channelBand()) if ch else None
-    return conn(ssid=iface.ssid(), bssid=iface.bssid(), signal_dbm=int(iface.rssiValue()),
+    from .macos import is_redacted
+
+    hidden = is_redacted(iface.ssid())  # macOS hides names/BSSIDs without Location permission
+    return conn(ssid=None if hidden else iface.ssid(), bssid=iface.bssid(), signal_dbm=int(iface.rssiValue()), redacted=hidden,
                 channel=int(ch.channelNumber()) if ch else None, band=band,
                 tx_rate_mbps=float(iface.transmitRate() or 0) or None,
                 noise_dbm=int(iface.noiseMeasurement()) or None, interface=iface.interfaceName())

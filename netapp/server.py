@@ -6,6 +6,7 @@ browser can show live progress through a plain `EventSource`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import AsyncIterator
@@ -17,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import diagnose, ipinfo, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
+from .tools import diagnose, ipinfo, macos, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -112,6 +113,17 @@ async def ip_info(ip: str | None = None):
         return await ipinfo.lookup(ip or None)
     except ipinfo.IpInfoError as exc:
         raise HTTPException(400 if ip else 502, str(exc)) from exc
+
+
+@app.get("/api/macos/location")
+async def macos_location():
+    return await asyncio.to_thread(macos.location_status)
+
+
+@app.post("/api/macos/location/request")
+async def macos_location_request():
+    """Ask macOS for Location access (shows the system prompt the first time)."""
+    return await asyncio.to_thread(macos.request_location)
 
 
 @app.get("/api/wifi/monitor")

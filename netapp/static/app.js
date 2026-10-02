@@ -4,8 +4,8 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-async function api(path) {
-  const r = await fetch(path);
+async function api(path, options = {}) {
+  const r = await fetch(path, options);
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.detail || `${r.status} ${r.statusText}`);
   return body;
@@ -525,12 +525,51 @@ function quality(dbm) {
   return { cls: "critical", label: "Weak" };
 }
 
+/**
+ * macOS hides Wi-Fi names/BSSIDs until the app has Location Services permission.
+ * Shows an explanation plus a button that asks macOS for access; onGranted() re-runs the caller's scan.
+ */
+function showLocationNotice(box, loc, onGranted) {
+  if (!loc) { box.hidden = true; return; }
+  const granted = loc.status === "authorized";
+  box.hidden = false;
+  box.innerHTML = `<h2>macOS is hiding Wi-Fi network names</h2>
+    <p>Since macOS 14, apps only see network names and access-point IDs with <b>Location Services</b> permission,
+      because nearby networks reveal where you are. NetApp doesn't use your location for anything else.</p>
+    ${granted
+      ? `<p><b>Permission is granted</b>, but names are still hidden. Quit NetApp (Ctrl+C in Terminal) and start it again.</p>`
+      : `<p class="toolbar"><button class="btn primary" type="button" data-loc-request>Allow location access</button>
+         <a class="btn" href="${esc(loc.settings_url)}">Open Location Services settings</a></p>
+         <p class="sub" data-loc-msg>${loc.status === "denied" ? `Access was previously denied. ${esc(loc.how_to)}` : ""}</p>`}`;
+  const btn = box.querySelector("[data-loc-request]");
+  btn?.addEventListener("click", async () => {
+    const msg = box.querySelector("[data-loc-msg]");
+    btn.disabled = true;
+    msg.textContent = "Waiting for macOS… if a permission prompt appears, choose Allow.";
+    try {
+      const res = await api("/api/macos/location/request", { method: "POST" });
+      if (res.status === "authorized") {
+        msg.textContent = "Access granted. Scanning again…";
+        onGranted();
+      } else if (res.services_enabled === false) {
+        msg.textContent = "Location Services is turned off for the whole Mac. " + res.how_to;
+      } else {
+        msg.textContent = (res.status === "denied" ? "macOS denied access. " : "macOS didn't show a prompt. ") + res.how_to;
+      }
+    } catch (err) {
+      msg.textContent = err.message;
+    }
+    btn.disabled = false;
+  });
+}
+
 function renderWifi(data) {
+  showLocationNotice($("#wifi-location"), data.location, () => $("#wifi-start").click());
   const nets = data.networks;
   $("#wifi-rows").innerHTML = nets.map((n) => {
     const q = quality(n.signal_dbm);
     return `<tr>
-      <td><b>${n.hidden ? `<span class="sub">(hidden network)</span>` : esc(n.ssid)}</b> ${n.in_use ? `<span class="badge accent">Connected</span>` : ""}</td>
+      <td><b>${n.redacted ? `<span class="sub">Name hidden by macOS</span>` : n.hidden ? `<span class="sub">(hidden network)</span>` : esc(n.ssid)}</b> ${n.in_use ? `<span class="badge accent">Connected</span>` : ""}</td>
       <td class="mono">${esc(n.bssid || "–")}</td>
       <td><div class="signal">
         <div class="signal-bar"><div class="q-${q.cls}" style="width:${n.signal_percent ?? 0}%"></div></div>
@@ -547,7 +586,7 @@ function renderWifi(data) {
   const connected = nets.find((n) => n.in_use);
   $("#wifi-recs").innerHTML = [
     ["Networks found", nets.length, `${new Set(nets.map((n) => n.ssid).filter(Boolean)).size} unique SSIDs`],
-    connected && ["Connected to", esc(connected.ssid), `Channel ${connected.channel ?? "?"} · ${connected.signal_dbm ?? "?"} dBm (${quality(connected.signal_dbm).label})`],
+    connected && ["Connected to", connected.redacted ? "Hidden by macOS" : esc(connected.ssid || "(hidden)"), `Channel ${connected.channel ?? "?"} · ${connected.signal_dbm ?? "?"} dBm (${quality(connected.signal_dbm).label})`],
     recs["2.4 GHz"] && ["Best 2.4 GHz channel", recs["2.4 GHz"].channel, "Least overlap among 1 / 6 / 11"],
     recs["5 GHz"] && ["Best 5 GHz channel", recs["5 GHz"].channel, `${recs["5 GHz"].networks_on_channel} nearby network(s) on it`],
   ].filter(Boolean).map(([label, value, note]) => `

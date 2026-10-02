@@ -106,7 +106,7 @@ function renderMonTiles(s) {
   }
   const q = quality(s.signal_dbm);
   $("#mon-tiles").innerHTML = [
-    tile("Network", esc(s.ssid || "(hidden)"), esc(s.radio || ""), "small"),
+    tile("Network", s.redacted ? "Hidden by macOS" : esc(s.ssid || "(hidden)"), esc(s.radio || ""), "small"),
     tile("Access point", s.bssid ? `<span class="mono">${esc(s.bssid)}</span>` : "Hidden by OS", `${esc(s.band || "?")} · channel ${s.channel ?? "?"}`, "small"),
     tile("Signal", `${s.signal_dbm ?? "?"}<small>dBm</small>`, `<span class="t-${q.cls}">${q.label}</span>${s.signal_percent != null ? ` · ${s.signal_percent}%` : ""}`),
     tile("Link rate", s.rx_rate_mbps || s.tx_rate_mbps ? `${Math.round(s.rx_rate_mbps || s.tx_rate_mbps)}<small>Mbps</small>` : "–", "Negotiated Wi-Fi speed, not internet speed"),
@@ -160,7 +160,8 @@ function renderAps(ev) {
 
 $("#mon-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  Object.assign(mon, { samples: [], bssids: [], events: [], marks: [] });
+  Object.assign(mon, { samples: [], bssids: [], events: [], marks: [], noBssidNote: false });
+  $("#mon-location").hidden = true;
   $("#mon-events").innerHTML = `<li class="sub">Roams, disconnects and sticky-connection warnings appear here.</li>`;
   renderSurvey();
   signalChart();
@@ -178,9 +179,17 @@ $("#mon-form").addEventListener("submit", (e) => {
       signalChart();
       renderSurvey();
       $("#mon-export").disabled = false;
-      if (ev.connected && !ev.bssid && !mon.noBssidNote) {
+      if (ev.connected && (ev.redacted || !ev.bssid) && !mon.noBssidNote) {
         mon.noBssidNote = true;
-        setStatus(status, "Monitoring… your OS hides the access point's BSSID (on macOS grant Location Services), so roaming can't be tracked.");
+        if (ev.redacted) {
+          api("/api/macos/location").then((loc) => showLocationNotice($("#mon-location"), loc, () => {
+            mon.run?.stop();
+            $("#mon-start").click();
+          })).catch(() => {});
+          setStatus(status, "Monitoring… signal works, but macOS is hiding the network name and access point, so roaming can't be tracked yet.");
+        } else {
+          setStatus(status, "Monitoring… your OS hides the access point's BSSID, so roaming can't be tracked.");
+        }
       }
     } else if (ev.type === "event") {
       addMonEvent(ev);

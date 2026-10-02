@@ -10,10 +10,12 @@ don't care which OS produced the data.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 
 from ..system import IS_LINUX, IS_MAC, IS_WINDOWS, run_cmd
+from . import macos
 
 CHANNELS_24 = [1, 6, 11]  # the only non-overlapping 20 MHz channels in 2.4 GHz
 # 5 GHz channels that need no radar detection (DFS), so every router supports them.
@@ -225,8 +227,9 @@ def _mac_network(entry: dict, in_use: bool) -> dict:
         band = "2.4 GHz"
     sig_m = re.search(r"(-?\d+)\s*dBm", str(entry.get("spairport_signal_noise", "")))
     noise_m = re.search(r"/\s*(-?\d+)\s*dBm", str(entry.get("spairport_signal_noise", "")))
+    redacted = macos.is_redacted(entry.get("_name"))  # macOS 14+ without Location permission
     return make_network(
-        entry.get("_name"),
+        None if redacted else entry.get("_name"),
         None,
         signal_dbm=int(sig_m.group(1)) if sig_m else None,
         channel=int(chan_m.group(1)) if chan_m else None,
@@ -235,6 +238,7 @@ def _mac_network(entry: dict, in_use: bool) -> dict:
         in_use=in_use,
         noise_dbm=int(noise_m.group(1)) if noise_m else None,
         radio=entry.get("spairport_network_phymode"),
+        redacted=redacted,
     )
 
 
@@ -251,6 +255,17 @@ def parse_system_profiler(data: dict) -> list[dict]:
 
 
 async def _scan_mac() -> list[dict]:
+    # Prefer Apple's CoreWLAN framework: faster, and it includes BSSIDs once Location access is granted.
+    try:
+        nets = await asyncio.to_thread(macos.scan_corewlan)
+        if nets:
+            return nets
+    except Exception:  # pyobjc missing or the scan failed: fall back to system_profiler
+        pass
+    return await _scan_system_profiler()
+
+
+async def _scan_system_profiler() -> list[dict]:
     res = await run_cmd(["system_profiler", "SPAirPortDataType", "-json"], timeout=40)
     if res is None or not res.ok:
         raise WifiError("system_profiler failed to report Wi-Fi networks.")
@@ -304,4 +319,8 @@ async def scan_wifi() -> dict:
     else:
         raise WifiError("Wi-Fi scanning is not supported on this operating system yet.")
     nets.sort(key=lambda n: (not n["in_use"], -(n["signal_percent"] or 0)))
-    return {"networks": nets, "channels": channel_report(nets)}
+    result = {"networks": nets, "channels": channel_report(nets)}
+    if IS_MAC and any(n.get("redacted") for n in nets):
+        # Names are hidden: tell the UI so it can explain and offer to request Location access.
+        result["location"] = await asyncio.to_thread(macos.location_status)
+    return result
