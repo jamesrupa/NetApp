@@ -63,6 +63,7 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
   if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
   loaders[name]?.();
+  updateCrumb(name);
   redrawCharts();
 }
 
@@ -73,6 +74,54 @@ let resizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(redrawCharts, 120); });
 document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
+// Sidebar icons (simple 16px line drawings).
+const ICONS = {
+  health: '<path d="M2 8h3l2-4 2 8 2-4h3"/>',
+  overview: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
+  ip: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2 2 2 9 0 11M8 2.5c-2 2-2 9 0 11"/>',
+  speed: '<path d="M2.5 11a5.5 5.5 0 1 1 11 0"/><path d="M8 11l3-4"/>',
+  scan: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.5"/><path d="M8 8l4-4"/>',
+  nmap: '<circle cx="8" cy="8" r="5"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/>',
+  wifi: '<path d="M1.5 6a9.5 9.5 0 0 1 13 0M3.8 8.6a6.2 6.2 0 0 1 8.4 0M6 11.1a3 3 0 0 1 4 0"/><circle cx="8" cy="13.2" r=".6"/>',
+  monitor: '<path d="M1.5 9h2.5l1.5-4 2.5 7 2-5 1.2 2h3.3"/>',
+  traffic: '<path d="M5 13V3M5 3L2.5 5.5M5 3l2.5 2.5M11 3v10M11 13l-2.5-2.5M11 13l2.5-2.5"/>',
+};
+document.querySelectorAll(".tabs button").forEach((b) => {
+  if (ICONS[b.dataset.tab]) {
+    b.insertAdjacentHTML("afterbegin", `<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">${ICONS[b.dataset.tab]}</svg>`);
+  }
+});
+
+/** "NETAPP // NETWORK // SPEED TEST" above each page title. */
+function updateCrumb(name) {
+  const btn = document.querySelector(`.tabs button[data-tab="${name}"]`);
+  let group = btn?.previousElementSibling;
+  while (group && !group.classList.contains("nav-group")) group = group.previousElementSibling;
+  const crumb = $("#crumb");
+  if (crumb && btn) crumb.textContent = ["NetApp", group?.textContent, btn.textContent].filter(Boolean).join("  //  ");
+}
+
+// Top-bar status strip: host, local IP, gateway and a clock.
+async function loadStatusStrip() {
+  try {
+    const o = await api("/api/overview");
+    const net = o.networks[0];
+    $("#sys-host").textContent = o.hostname;
+    $("#sys-ip").textContent = net ? net.address : "offline";
+    $("#sys-gw").textContent = o.gateway || "–";
+    $("#sys-dot").classList.toggle("online", Boolean(net && o.gateway));
+    $("#sys-state").textContent = net && o.gateway ? "Online" : "No network";
+  } catch {
+    $("#sys-state").textContent = "Server unreachable";
+  }
+}
+function tickClock() {
+  $("#sys-clock").textContent = new Date().toLocaleTimeString([], { hour12: false });
+}
+tickClock();
+setInterval(tickClock, 1000);
+loadStatusStrip();
+
 function storage(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
@@ -82,10 +131,7 @@ function storage(key, value) {
 const savedTheme = storage("netapp-theme");
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
 $("#theme-toggle").addEventListener("click", () => {
-  const dark = document.documentElement.dataset.theme
-    ? document.documentElement.dataset.theme === "dark"
-    : matchMedia("(prefers-color-scheme: dark)").matches;
-  const next = dark ? "light" : "dark";
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";  // dark is the default
   document.documentElement.dataset.theme = next;
   storage("netapp-theme", next);
 });
@@ -181,7 +227,8 @@ function lineChart(container, series, { xMax, xLabel = (x) => x, yUnit = "" }) {
 
 /** Bar chart of counts per category. bars = [{label, value, tip}]. */
 function barChart(container, bars, { ariaLabel }) {
-  const W = 520, H = 200, m = { t: 12, r: 8, b: 26, l: 32 };
+  // Real container width keeps the axis text at its true size (falls back while the tab is hidden).
+  const W = Math.max(280, container.clientWidth || 520), H = 200, m = { t: 12, r: 8, b: 26, l: 32 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const yMax = Math.max(2, ...bars.map((b) => b.value));
   const step = iw / bars.length, bw = Math.max(4, Math.min(28, step - 2));
@@ -620,7 +667,11 @@ function showLocationNotice(box, loc, onGranted) {
   });
 }
 
+let lastWifi = null;
+chartRedrawers.push(() => { if (lastWifi && !$("#tab-wifi").hidden) renderWifi(lastWifi); });
+
 function renderWifi(data) {
+  lastWifi = data;
   showLocationNotice($("#wifi-location"), data.location, () => $("#wifi-start").click());
   const nets = data.networks;
   $("#wifi-rows").innerHTML = nets.map((n) => {

@@ -8,7 +8,14 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp</div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp<span class="brand-sub">Network Diagnostics</span></div>
+    <div class="sys-strip" aria-label="System status">
+      <span class="sys-item"><span class="sys-dot" id="sys-dot"></span><span id="sys-state">Connecting…</span></span>
+      <span class="sys-item hide-sm"><span class="sys-key">Host</span><span id="sys-host">–</span></span>
+      <span class="sys-item hide-sm"><span class="sys-key">IP</span><span id="sys-ip">–</span></span>
+      <span class="sys-item hide-md"><span class="sys-key">GW</span><span id="sys-gw">–</span></span>
+      <span class="sys-item hide-sm"><span class="sys-key">Time</span><span id="sys-clock">–</span></span>
+    </div>
     <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
   </header>
 
@@ -32,6 +39,7 @@
   </aside>
 
   <main>
+    <div class="crumb" id="crumb" aria-hidden="true"></div>
     <!-- Health check -------------------------------------------------------------->
     <section id="tab-health" class="panel" role="tabpanel">
       <div class="panel-head">
