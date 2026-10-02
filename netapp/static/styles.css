@@ -231,6 +231,25 @@ td.empty { color: var(--text-muted); text-align: center; padding: 28px; }
 }
 .tooltip b { font-variant-numeric: tabular-nums; }
 
+/* --- speed dial ------------------------------------------------------------------- */
+.speed-viz { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 24px; align-items: center; }
+.dial svg { display: block; width: 100%; height: auto; }
+.dial .track { stroke: var(--surface-2); }
+.dial .fill { transition: stroke-dasharray .35s ease-out, stroke .2s; stroke: var(--series-1); }
+.dial .fill.upload { stroke: var(--series-2); }
+.dial .tick { stroke: var(--text-muted); stroke-width: 1.5; }
+.dial .tick-label { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
+.dial .needle { transition: transform .35s ease-out; transform-box: view-box; }
+.dial .needle line { stroke: var(--text-primary); stroke-width: 3; stroke-linecap: round; }
+.dial .hub { fill: var(--text-primary); stroke: var(--surface-1); stroke-width: 3; }
+.dial .value { fill: var(--text-primary); font-size: 38px; font-weight: 700; font-family: var(--font); font-variant-numeric: tabular-nums; }
+.dial .unit, .dial .phase { fill: var(--text-secondary); font-size: 13px; font-family: var(--font); }
+.dial .phase { font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+@media (max-width: 760px) {
+  .speed-viz { grid-template-columns: minmax(0, 1fr); }
+  .dial { max-width: 300px; margin: 0 auto; width: 100%; }
+}
+
 /* --- health check ------------------------------------------------------------- */
 .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
 .mode-card {

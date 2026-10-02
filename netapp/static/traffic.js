@@ -46,6 +46,8 @@ function drawTraffic() {
   ], { xMax: trDuration, xLabel: (x) => fmtT(x), yUnit: "Mbps" });
 }
 
+chartRedrawers.push(() => { if (!$("#tab-traffic").hidden) drawTraffic(); });
+
 const hostName = (ip) => hosts.get(ip)?.hostname;  // from the Network Scanner, if it has been run
 
 function renderTraffic(ev, live) {

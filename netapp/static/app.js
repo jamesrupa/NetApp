@@ -63,7 +63,14 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
   if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
   loaders[name]?.();
+  redrawCharts();
 }
+
+// Charts that size themselves to their container register here and are redrawn on resize / tab switch.
+const chartRedrawers = [];
+function redrawCharts() { chartRedrawers.forEach((fn) => fn()); }
+let resizeTimer = null;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(redrawCharts, 120); });
 document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
 function storage(key, value) {
@@ -119,7 +126,8 @@ function niceMax(v) {
  * Hover shows a crosshair and the value of every series at that x.
  */
 function lineChart(container, series, { xMax, xLabel = (x) => x, yUnit = "" }) {
-  const W = 760, H = 260, m = { t: 12, r: 16, b: 28, l: 48 };
+  // Draw at the container's real width so text stays at its true size (falls back while the tab is hidden).
+  const W = Math.max(300, container.clientWidth || 760), H = W < 500 ? 220 : 260, m = { t: 12, r: 16, b: 28, l: 48 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const yMax = niceMax(Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.y))));
   const sx = (x) => m.l + (x / xMax) * iw;
@@ -132,9 +140,10 @@ function lineChart(container, series, { xMax, xLabel = (x) => x, yUnit = "" }) {
     svgEl("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v) }, svg);
     svgEl("text", { class: "axis-label", x: m.l - 8, y: sy(v) + 4, "text-anchor": "end" }, svg).textContent = +v.toFixed(2);
   }
-  const ticks = Math.min(8, Math.floor(xMax));
-  for (let i = 0; i <= ticks; i++) {
-    const v = (xMax / ticks) * i;
+  // Round tick steps (1, 2, 5, 10, 15, 30 s…) with no more labels than fit.
+  const maxTicks = Math.max(2, Math.min(Math.floor(iw / 70), 8));
+  const step = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find((st) => xMax / st <= maxTicks) || xMax;
+  for (let v = 0; v <= xMax + 1e-9; v += step) {
     svgEl("text", { class: "axis-label", x: sx(v), y: H - 8, "text-anchor": "middle" }, svg).textContent = xLabel(v);
   }
   for (const s of series) {
@@ -254,12 +263,81 @@ function drawSpeed() {
   ], { xMax: Math.max(SPEED_DURATION, Math.ceil(lastT)), xLabel: (x) => `${x.toFixed(1).replace(/\.0$/, "")}s`, yUnit: "Mbps" });
 }
 drawSpeed();
+chartRedrawers.push(() => { if (!$("#tab-speed").hidden) drawSpeed(); });
+
+// Speedometer dial: a 270° gauge with a speedtest.net-style scale that gives the low end more room.
+const DIAL = { cx: 150, cy: 150, r: 112, start: -135, end: 135 };
+const DIAL_SCALES = [[0, 5, 10, 50, 100, 250, 500, 750, 1000], [0, 10, 50, 100, 250, 500, 1000, 2500, 5000]];
+let dialScale = DIAL_SCALES[0];
+let dialEls = null;
+
+function dialFraction(v) {
+  const t = dialScale;
+  if (v <= 0) return 0;
+  if (v >= t[t.length - 1]) return 1;
+  const i = t.findIndex((x) => x > v) - 1;  // equal space per tick interval, linear within it
+  return (i + (v - t[i]) / (t[i + 1] - t[i])) / (t.length - 1);
+}
+function dialPoint(angle, r) {
+  const a = (angle * Math.PI) / 180;
+  return [DIAL.cx + r * Math.sin(a), DIAL.cy - r * Math.cos(a)];
+}
+
+function buildDial() {
+  const box = $("#speed-dial");
+  box.innerHTML = "";
+  const svg = svgEl("svg", { viewBox: "0 0 300 262", role: "img", "aria-label": "Speed dial" }, box);
+  const [sx, sy] = dialPoint(DIAL.start, DIAL.r), [ex, ey] = dialPoint(DIAL.end, DIAL.r);
+  const arc = `M${sx},${sy} A${DIAL.r},${DIAL.r} 0 1 1 ${ex},${ey}`;
+  svgEl("path", { class: "track", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round" }, svg);
+  const fill = svgEl("path", { class: "fill", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round",
+    pathLength: 100, "stroke-dasharray": "0 100" }, svg);
+  dialScale.forEach((v, i) => {
+    const angle = DIAL.start + ((DIAL.end - DIAL.start) * i) / (dialScale.length - 1);
+    const [x1, y1] = dialPoint(angle, DIAL.r - 14), [x2, y2] = dialPoint(angle, DIAL.r - 20);
+    svgEl("line", { class: "tick", x1, y1, x2, y2 }, svg);
+    const [lx, ly] = dialPoint(angle, DIAL.r - 34);
+    svgEl("text", { class: "tick-label", x: lx, y: ly + 4, "text-anchor": "middle" }, svg).textContent = v >= 1000 ? `${v / 1000}G` : v;
+  });
+  const needle = svgEl("g", { class: "needle" }, svg);
+  needle.style.transformOrigin = `${DIAL.cx}px ${DIAL.cy}px`;
+  needle.style.transform = `rotate(${DIAL.start}deg)`;
+  svgEl("line", { x1: DIAL.cx, y1: DIAL.cy + 10, x2: DIAL.cx, y2: DIAL.cy - DIAL.r + 30 }, needle);
+  svgEl("circle", { class: "hub", cx: DIAL.cx, cy: DIAL.cy, r: 7 }, svg);
+  const phase = svgEl("text", { class: "phase", x: DIAL.cx, y: DIAL.cy + 44, "text-anchor": "middle" }, svg);
+  const value = svgEl("text", { class: "value", x: DIAL.cx, y: DIAL.cy + 86, "text-anchor": "middle" }, svg);
+  const unit = svgEl("text", { class: "unit", x: DIAL.cx, y: DIAL.cy + 106, "text-anchor": "middle" }, svg);
+  dialEls = { svg, fill, needle, phase, value, unit };
+  setDial(0, "ready");
+}
+
+/** Move the dial. phase: ready | latency | download | upload | done. For latency, v is ms (shown, not plotted). */
+function setDial(v, phase, extra = "") {
+  if (!dialEls) buildDial();
+  if (phase !== "latency" && v > dialScale[dialScale.length - 1] && dialScale === DIAL_SCALES[0]) {
+    dialScale = DIAL_SCALES[1];  // multi-gigabit connection: switch to the wider scale
+    buildDial();
+  }
+  const plotted = phase === "download" || phase === "upload" ? v : phase === "done" ? v : 0;
+  const frac = dialFraction(plotted);
+  dialEls.fill.setAttribute("stroke-dasharray", `${(frac * 100).toFixed(2)} 100`);
+  dialEls.fill.classList.toggle("upload", phase === "upload");
+  dialEls.needle.style.transform = `rotate(${DIAL.start + frac * (DIAL.end - DIAL.start)}deg)`;
+  const labels = { ready: "Ready", latency: "Ping", download: "↓ Download", upload: "↑ Upload", done: "↓ Download" };
+  dialEls.phase.textContent = labels[phase] || "";
+  dialEls.value.textContent = phase === "ready" ? "–" : phase === "latency" ? Math.round(v) : v >= 100 ? Math.round(v) : v.toFixed(1);
+  dialEls.unit.textContent = phase === "latency" ? "ms" : extra || "Mbps";
+  dialEls.svg.setAttribute("aria-label", `${labels[phase] || "Speed"}: ${dialEls.value.textContent} ${dialEls.unit.textContent}`);
+}
+buildDial();
 
 function resetSpeed() {
   speed.down = []; speed.up = [];
   ["#sp-ping", "#sp-jitter", "#sp-down", "#sp-up", "#sp-loss"].forEach((s) => { $(s).textContent = "–"; });
   $("#sp-loss-tile").hidden = true;
   $("#sp-server-info").innerHTML = "";
+  dialScale = DIAL_SCALES[0];
+  buildDial();
   drawSpeed();
 }
 
@@ -283,7 +361,7 @@ function applySpeedEvent(ev) {
     return null;
   }
   if (ev.phase === "latency") {
-    if (ev.type === "sample") $("#sp-ping").textContent = ev.ms.toFixed(0);
+    if (ev.type === "sample") { $("#sp-ping").textContent = ev.ms.toFixed(0); setDial(ev.ms, "latency"); }
     if (ev.type === "result") {
       $("#sp-ping").textContent = ev.latency_ms.toFixed(0);
       $("#sp-jitter").textContent = ev.jitter_ms.toFixed(1);
@@ -294,6 +372,7 @@ function applySpeedEvent(ev) {
     if (ev.type === "sample") {
       speed[ev.phase === "download" ? "down" : "up"].push({ x: ev.t, y: ev.mbps });
       el.textContent = ev.mbps.toFixed(1);
+      setDial(ev.mbps, ev.phase);
       drawSpeed();
       return `${SPEED_LABELS[ev.phase]} ${ev.mbps.toFixed(1)} Mbps`;
     }
@@ -306,6 +385,7 @@ function applySpeedEvent(ev) {
       $("#sp-loss-tile").hidden = false;
     }
     $("#sp-server-info").innerHTML = speedServerLine(ev);
+    setDial(ev.download_mbps, "done", `Mbps · ↑ ${ev.upload_mbps} up`);
     return `Download ${ev.download_mbps} Mbps · Upload ${ev.upload_mbps} Mbps · Ping ${ev.latency_ms} ms`;
   }
   return null;
