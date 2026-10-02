@@ -7,6 +7,7 @@ browser can show live progress through a plain `EventSource`.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import diagnose, netinfo, netscan, report, speedtest, wifiscan
+from .tools import diagnose, ipinfo, netinfo, netscan, nmapscan, report, speedtest, traffic, wifimonitor, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -91,6 +92,58 @@ async def wifi():
         return await wifiscan.scan_wifi()
     except wifiscan.WifiError as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@app.get("/api/ipinfo")
+async def ip_info(ip: str | None = None):
+    try:
+        return await ipinfo.lookup(ip or None)
+    except ipinfo.IpInfoError as exc:
+        raise HTTPException(400 if ip else 502, str(exc)) from exc
+
+
+@app.get("/api/wifi/monitor")
+async def wifi_monitor(interval: float = Query(1.0, ge=0.5, le=10), scan_every: float = Query(30, ge=10, le=300)):
+    return sse(wifimonitor.monitor(interval=interval, scan_every=scan_every))
+
+
+@app.get("/api/nmap/status")
+async def nmap_status():
+    return nmapscan.status()
+
+
+@app.get("/api/nmap/scan")
+async def nmap_scan(target: str, profile: str = "quick", os_detect: bool = False, scripts: bool = False):
+    async def run():
+        gateway = await netinfo.default_gateway()
+        async for ev in nmapscan.run_scan(target, profile, os_detect, scripts, gateway):
+            yield ev
+    return sse(run())
+
+
+@app.get("/api/traffic/status")
+async def traffic_status():
+    return await traffic.status()
+
+
+@app.get("/api/traffic/capture")
+async def traffic_capture(
+    interface: str,
+    duration: int = Query(60, ge=5, le=traffic.MAX_DURATION),
+    filter: str = "",
+    save: bool = False,
+):
+    return sse(traffic.capture(interface, duration, filter, save))
+
+
+@app.get("/api/traffic/captures/{name}")
+async def traffic_download(name: str):
+    if not re.fullmatch(r"netapp-capture-[\d-]+\.pcapng", name):
+        raise HTTPException(400, "Invalid capture name.")
+    path = traffic.captures_dir() / name
+    if not path.is_file():
+        raise HTTPException(404, "Capture not found.")
+    return FileResponse(path, media_type="application/octet-stream", filename=name)
 
 
 @app.get("/api/diagnose")

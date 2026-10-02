@@ -59,3 +59,63 @@ async def run_blocking(func, *args):
     """Run any blocking callable (DNS lookups, etc.) in the shared pool."""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_executor, func, *args)
+
+
+def find_tool(name: str, extra_paths: list[str] = ()) -> str | None:
+    """Locate an external program on PATH or in its usual install folders."""
+    import shutil
+    from pathlib import Path
+
+    found = shutil.which(name)
+    if found:
+        return found
+    for p in extra_paths:
+        if Path(p).is_file():
+            return p
+    return None
+
+
+async def stream_cmd(args: list[str]):
+    """Run a long-lived command, yielding ('out'|'err', line) as it prints.
+
+    The process is killed if the consumer stops early (e.g. the browser tab closes).
+    Finishes with ('exit', returncode).
+    """
+    import threading
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    kwargs = {}
+    if IS_WINDOWS:
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+    proc = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL,
+        text=True, encoding="utf-8", errors="replace", bufsize=1, **kwargs,
+    )
+
+    def pump(stream, kind):
+        try:
+            for line in stream:
+                loop.call_soon_threadsafe(queue.put_nowait, (kind, line.rstrip("\r\n")))
+            loop.call_soon_threadsafe(queue.put_nowait, (kind, None))
+        except (RuntimeError, ValueError):  # loop closed / pipe closed after the consumer stopped
+            pass
+
+    for stream, kind in ((proc.stdout, "out"), (proc.stderr, "err")):
+        threading.Thread(target=pump, args=(stream, kind), daemon=True).start()
+    try:
+        open_streams = 2
+        while open_streams:
+            kind, line = await queue.get()
+            if line is None:
+                open_streams -= 1
+            else:
+                yield kind, line
+        yield "exit", await loop.run_in_executor(_executor, proc.wait)
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                await loop.run_in_executor(_executor, proc.wait, 3)
+            except subprocess.TimeoutExpired:
+                proc.kill()

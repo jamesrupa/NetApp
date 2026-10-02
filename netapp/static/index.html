@@ -9,15 +9,27 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp</div>
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="health" aria-selected="true">Health Check</button>
-      <button role="tab" data-tab="overview">Overview</button>
-      <button role="tab" data-tab="speed">Speed Test</button>
-      <button role="tab" data-tab="scan">Network Scanner</button>
-      <button role="tab" data-tab="wifi">Wi-Fi Scanner</button>
-    </nav>
     <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
   </header>
+
+  <div class="layout">
+  <aside class="sidebar">
+    <nav class="tabs" role="tablist" aria-label="Tools">
+      <div class="nav-group">Diagnose</div>
+      <button role="tab" data-tab="health" aria-selected="true">Health Check</button>
+      <div class="nav-group">Network</div>
+      <button role="tab" data-tab="overview">Overview</button>
+      <button role="tab" data-tab="ip">Public IP</button>
+      <button role="tab" data-tab="speed">Speed Test</button>
+      <button role="tab" data-tab="scan">Network Scanner</button>
+      <button role="tab" data-tab="nmap">Port Scanner (Nmap)</button>
+      <div class="nav-group">Wi-Fi</div>
+      <button role="tab" data-tab="wifi">Wi-Fi Scanner</button>
+      <button role="tab" data-tab="monitor">Wi-Fi Monitor</button>
+      <div class="nav-group">Traffic</div>
+      <button role="tab" data-tab="traffic">Traffic Analyzer</button>
+    </nav>
+  </aside>
 
   <main>
     <!-- Health check -------------------------------------------------------------->
@@ -150,9 +162,164 @@
         </table>
       </div>
     </section>
+
+    <!-- Public IP ------------------------------------------------------------------>
+    <section id="tab-ip" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Public IP</h1>
+          <p class="muted">The address the internet sees for your connection, and who it belongs to.</p>
+        </div>
+        <button class="btn" id="ip-refresh">Refresh</button>
+      </div>
+      <p class="status" id="ip-status">Looking up your public IP…</p>
+      <div class="tiles" id="ip-tiles"></div>
+      <div class="card">
+        <div class="card-head"><h2>Look up another IP address</h2></div>
+        <form class="toolbar" id="ip-form">
+          <label>IP address <input id="ip-query" placeholder="8.8.8.8" spellcheck="false"></label>
+          <button class="btn primary" type="submit">Look up</button>
+        </form>
+        <p class="status" id="ip-lookup-status"></p>
+        <div class="tiles" id="ip-lookup-tiles"></div>
+      </div>
+      <p class="muted small-print">Lookups use ipinfo.io (fallback: ipwho.is). IP location is approximate: it usually points
+        to your ISP's nearest hub, not your home.</p>
+    </section>
+
+    <!-- Nmap ----------------------------------------------------------------------->
+    <section id="tab-nmap" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Port Scanner (Nmap)</h1>
+          <p class="muted">Find open ports and the software behind them using Nmap. Only scan networks you own or are allowed to test.</p>
+        </div>
+      </div>
+      <div class="card notice" id="nmap-missing" hidden></div>
+      <form class="toolbar" id="nmap-form">
+        <label>Target <input id="nmap-target" placeholder="192.168.1.0/24" spellcheck="false"></label>
+        <label>Scan type <select id="nmap-profile"></select></label>
+        <label class="check"><input type="checkbox" id="nmap-os"> OS detection <span class="sub" id="nmap-os-note"></span></label>
+        <label class="check"><input type="checkbox" id="nmap-scripts"> Default scripts</label>
+        <button class="btn primary" id="nmap-start" type="submit">Run Nmap</button>
+        <button class="btn" id="nmap-stop" type="button" hidden>Stop</button>
+      </form>
+      <p class="sub" id="nmap-profile-desc"></p>
+      <div class="progress" aria-hidden="true"><div id="nmap-bar"></div></div>
+      <p class="status" id="nmap-status">Choose a target and scan type, then press <b>Run Nmap</b>.</p>
+      <p class="mono sub" id="nmap-command"></p>
+      <div id="nmap-findings"></div>
+      <div id="nmap-results"></div>
+    </section>
+
+    <!-- Wi-Fi monitor ---------------------------------------------------------------->
+    <section id="tab-monitor" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Wi-Fi Monitor</h1>
+          <p class="muted">Live signal graph. Walk around with this device to find weak spots and see which access point you're on.</p>
+        </div>
+      </div>
+      <form class="toolbar" id="mon-form">
+        <label>Sample every <select id="mon-interval"><option value="1">1 s</option><option value="2" selected>2 s</option><option value="5">5 s</option></select></label>
+        <button class="btn primary" id="mon-start" type="submit">Start monitoring</button>
+        <button class="btn" id="mon-stop" type="button" hidden>Stop</button>
+        <span class="toolbar-gap"></span>
+        <label>Location <input id="mon-location" placeholder="e.g. Kitchen" spellcheck="false"></label>
+        <button class="btn" id="mon-mark" type="button" disabled>Mark location</button>
+        <button class="btn" id="mon-export" type="button" disabled>Export CSV</button>
+      </form>
+      <p class="status" id="mon-status">Press <b>Start monitoring</b>. To survey your home, type a room name, press <b>Mark location</b>,
+        stand there for 15–30 seconds, then move to the next room.</p>
+      <div class="tiles" id="mon-tiles"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Signal strength</h2>
+          <div class="legend" id="mon-legend"></div>
+        </div>
+        <div class="chart" id="mon-chart"></div>
+      </div>
+      <div class="grid-2 top-gap">
+        <div class="card">
+          <div class="card-head"><h2>Access points for this network</h2><span class="sub" id="mon-aps-note">Refreshed every 30 s</span></div>
+          <div class="table-wrap flat"><table>
+            <thead><tr><th>Access point (BSSID)</th><th>Band</th><th class="num">Ch</th><th>Signal</th></tr></thead>
+            <tbody id="mon-aps"><tr><td colspan="4" class="empty">Waiting for the first scan…</td></tr></tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Events</h2></div>
+          <ul class="feed" id="mon-events"><li class="sub">Roams, disconnects and sticky-connection warnings appear here.</li></ul>
+        </div>
+      </div>
+      <h2>Location survey</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Location</th><th>Quality</th><th class="num">Average</th><th class="num">Worst</th><th class="num">Best</th><th>Access points</th><th class="num">Samples</th></tr></thead>
+          <tbody id="mon-survey"><tr><td colspan="7" class="empty">Mark locations while monitoring to build a survey.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Traffic analyzer --------------------------------------------------------------->
+    <section id="tab-traffic" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Traffic Analyzer</h1>
+          <p class="muted">Capture packets with Wireshark's engine (tshark) and see what's happening in plain English.</p>
+        </div>
+      </div>
+      <div class="card notice" id="tr-missing" hidden></div>
+      <form class="toolbar" id="tr-form">
+        <label>Interface <select id="tr-iface"></select></label>
+        <label>Duration <select id="tr-duration"><option value="30">30 s</option><option value="60" selected>1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option></select></label>
+        <label>Capture filter (optional) <input id="tr-filter" placeholder="e.g. host 192.168.1.20" spellcheck="false"></label>
+        <label class="check"><input type="checkbox" id="tr-save"> Save .pcapng for Wireshark</label>
+        <button class="btn primary" id="tr-start" type="submit">Start capture</button>
+        <button class="btn" id="tr-stop" type="button" hidden>Stop</button>
+      </form>
+      <p class="status" id="tr-status">Pick the interface you use to reach the internet (usually Wi-Fi or Ethernet) and start a capture.</p>
+      <details class="explain">
+        <summary>What can I see?</summary>
+        <p>On Wi-Fi and modern switched networks, a computer only sees <b>its own traffic</b> plus broadcast/multicast
+          chatter from other devices (device announcements, DHCP, ARP). To watch every device you need a switch with a
+          <i>mirror/SPAN port</i>, a Wi-Fi adapter in <i>monitor mode</i>, or to capture on the router itself.
+          Encrypted traffic (HTTPS, QUIC) only reveals which site was contacted, not what was sent.</p>
+      </details>
+      <div class="tiles" id="tr-tiles"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Throughput</h2>
+          <div class="legend"><span><i class="key key-1"></i>Download (in)</span><span><i class="key key-2"></i>Upload (out)</span></div>
+        </div>
+        <div class="chart" id="tr-chart"></div>
+      </div>
+      <div class="grid-2 top-gap">
+        <div class="card"><div class="card-head"><h2>Protocols</h2><span class="sub">Share of data</span></div><div id="tr-protocols" class="hbars"></div></div>
+        <div class="card"><div class="card-head"><h2>What we noticed</h2></div><div id="tr-insights"><p class="sub">Insights appear once traffic is captured.</p></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-head"><h2>Busiest devices</h2></div>
+          <div class="table-wrap flat"><table><thead><tr><th>Device</th><th class="num">Sent</th><th class="num">Received</th><th>Mostly</th></tr></thead>
+          <tbody id="tr-devices"><tr><td colspan="4" class="empty">–</td></tr></tbody></table></div></div>
+        <div class="card"><div class="card-head"><h2>Sites &amp; services contacted</h2></div>
+          <div class="table-wrap flat"><table><thead><tr><th>Destination</th><th>Protocol</th><th class="num">Data</th></tr></thead>
+          <tbody id="tr-dests"><tr><td colspan="3" class="empty">–</td></tr></tbody></table></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Live activity</h2><span class="sub">First occurrence of each lookup/connection</span></div>
+        <ul class="feed" id="tr-feed"><li class="sub">Nothing captured yet.</li></ul>
+      </div>
+    </section>
   </main>
+  </div>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="/static/app.js"></script>
+  <script src="/static/ipinfo.js"></script>
+  <script src="/static/nmap.js"></script>
+  <script src="/static/monitor.js"></script>
+  <script src="/static/traffic.js"></script>
+  <script src="/static/main.js"></script>
 </body>
 </html>

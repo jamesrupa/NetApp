@@ -240,35 +240,48 @@ def network_rules(network: dict | None, system: dict | None) -> list[dict]:
                    f"Review the device list for anything you don't recognise ({unnamed} have no name). Unknown "
                    "devices can be blocked in the router, and changing the Wi-Fi password removes everyone." if hosts else ""))
 
-    # Risky services, grouped per port so one recommendation lists every affected device.
+    out += port_rules(hosts)
+    router = next((h for h in hosts if h.get("is_gateway")), None)
+    if router:
+        out += router_rules(router)
+    return out
+
+
+def port_rules(hosts: list[dict]) -> list[dict]:
+    """Risky services, grouped per port so one recommendation lists every affected device."""
     by_port: dict[int, list[str]] = {}
     for h in hosts:
         for p in (h.get("ports") or {}).get("open", []):
             if p["port"] in RISKY_PORTS:
                 by_port.setdefault(p["port"], []).append(h["ip"])
+    out = []
     for port, ips in sorted(by_port.items(), key=lambda kv: SEVERITY_ORDER[RISKY_PORTS[kv[0]][0]]):
         sev, name, why, action = RISKY_PORTS[port]
         out.append(rec(sev, "Security", f"{name} (port {port}) open on {len(ips)} device{'s' if len(ips) > 1 else ''}",
                        f"{', '.join(ips)}: {name} {why}.", action))
+    return out
 
-    router = next((h for h in hosts if h.get("is_gateway")), None)
-    if router and router.get("ports") is not None:
-        ports = {p["port"] for p in router["ports"].get("open", [])}
-        if 80 in ports and 443 not in ports:
-            out.append(rec("warning", "Security", "Router admin page uses plain HTTP",
-                           f"The router ({router['ip']}) serves its admin page without encryption, so the admin password "
-                           "crosses the network in clear text.",
-                           "Enable HTTPS for the admin interface if the router supports it, and use a strong admin password "
-                           "(not the default printed on the label)."))
-        if ports & {5000, 49152}:
-            out.append(rec("info", "Security", "UPnP appears to be enabled on the router",
-                           "UPnP lets devices open ports on your router automatically. It's convenient for gaming and video "
-                           "calls but malware can use it too.",
-                           "If you don't need it (no consoles or P2P apps), disable UPnP in the router settings."))
-        if ports & {22, 23}:
-            out.append(rec("info", "Security", "Router allows SSH/Telnet logins",
-                           "Remote shell access to the router is enabled on the LAN.",
-                           "Turn it off unless you use it, and make sure remote management from the internet (WAN) is disabled."))
+
+def router_rules(router: dict) -> list[dict]:
+    if router.get("ports") is None:
+        return []
+    out = []
+    ports = {p["port"] for p in router["ports"].get("open", [])}
+    if 80 in ports and 443 not in ports:
+        out.append(rec("warning", "Security", "Router admin page uses plain HTTP",
+                       f"The router ({router['ip']}) serves its admin page without encryption, so the admin password "
+                       "crosses the network in clear text.",
+                       "Enable HTTPS for the admin interface if the router supports it, and use a strong admin password "
+                       "(not the default printed on the label)."))
+    if ports & {5000, 49152}:
+        out.append(rec("info", "Security", "UPnP appears to be enabled on the router",
+                       "UPnP lets devices open ports on your router automatically. It's convenient for gaming and video "
+                       "calls but malware can use it too.",
+                       "If you don't need it (no consoles or P2P apps), disable UPnP in the router settings."))
+    if ports & {22, 23}:
+        out.append(rec("info", "Security", "Router allows SSH/Telnet logins",
+                       "Remote shell access to the router is enabled on the LAN.",
+                       "Turn it off unless you use it, and make sure remote management from the internet (WAN) is disabled."))
     return out
 
 

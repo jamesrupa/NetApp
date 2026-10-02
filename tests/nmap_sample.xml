@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.94SVN scan initiated Fri Oct  2 17:00:14 2026 as: nmap -T4 -p 22,8080,8099 -sV -v -oX tests/nmap_sample.xml 127.0.0.1 -->
+<nmaprun scanner="nmap" args="nmap -T4 -p 22,8080,8099 -sV -v -oX tests/nmap_sample.xml 127.0.0.1" start="1790960414" startstr="Fri Oct  2 17:00:14 2026" version="7.94SVN" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="3" services="22,8080,8099"/>
+<verbose level="1"/>
+<debugging level="0"/>
+<taskbegin task="SYN Stealth Scan" time="1790960414"/>
+<taskend task="SYN Stealth Scan" time="1790960414" extrainfo="3 total ports"/>
+<taskbegin task="Service scan" time="1790960414"/>
+<taskend task="Service scan" time="1790960420" extrainfo="1 service on 1 host"/>
+<taskbegin task="NSE" time="1790960420"/>
+<taskend task="NSE" time="1790960420"/>
+<taskbegin task="NSE" time="1790960420"/>
+<taskend task="NSE" time="1790960420"/>
+<host starttime="1790960414" endtime="1790960420"><status state="up" reason="localhost-response" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="PTR"/>
+</hostnames>
+<ports><port protocol="tcp" portid="22"><state state="closed" reason="reset" reason_ttl="64"/><service name="ssh" method="table" conf="3"/></port>
+<port protocol="tcp" portid="8080"><state state="open" reason="syn-ack" reason_ttl="64"/><service name="http" product="SimpleHTTPServer" version="0.6" extrainfo="Python 3.11.15" method="probed" conf="10"><cpe>cpe:/a:python:simplehttpserver:0.6</cpe></service></port>
+<port protocol="tcp" portid="8099"><state state="closed" reason="reset" reason_ttl="64"/></port>
+</ports>
+<times srtt="44" rttvar="2829" to="100000"/>
+</host>
+<runstats><finished time="1790960420" timestr="Fri Oct  2 17:00:20 2026" summary="Nmap done at Fri Oct  2 17:00:20 2026; 1 IP address (1 host up) scanned in 6.51 seconds" elapsed="6.51" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

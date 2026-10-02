@@ -19,7 +19,35 @@ function stream(path, onEvent, onEnd) {
   es.onmessage = (m) => onEvent(JSON.parse(m.data));
   es.addEventListener("end", () => finish());
   es.onerror = () => finish(new Error("Connection to the NetApp server was lost."));
-  return es;
+  return { stop: () => finish() };  // stopping closes the stream; the server then stops the tool
+}
+
+function fmtBytes(n) {
+  if (n == null) return "–";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
+  return `${n.toFixed(n >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+const SEV = {
+  critical: { icon: "✖", label: "Critical" },
+  warning: { icon: "▲", label: "Warning" },
+  info: { icon: "ℹ", label: "Info" },
+  good: { icon: "✔", label: "Looks good" },
+};
+
+function recCard(r) {
+  return `<article class="rec ${r.severity}">
+      <div class="sev">${SEV[r.severity].icon} ${SEV[r.severity].label}${r.category ? ` <span class="cat">· ${esc(r.category)}</span>` : ""}</div>
+      <h3>${esc(r.title)}</h3>
+      <p>${esc(r.detail)}</p>
+      ${r.action ? `<p class="action"><b>Recommended change:</b> ${esc(r.action)}</p>` : ""}
+    </article>`;
+}
+
+function tile(label, value, note = "", cls = "") {
+  return `<div class="tile"><div class="tile-label">${label}</div><div class="tile-value ${cls}">${value}</div>${note ? `<div class="tile-note">${note}</div>` : ""}</div>`;
 }
 
 function setStatus(el, text, isError = false) {
@@ -102,7 +130,7 @@ function lineChart(container, series, { xMax, xLabel = (x) => x, yUnit = "" }) {
   for (let i = 0; i <= 4; i++) {
     const v = (yMax / 4) * i;
     svgEl("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v) }, svg);
-    svgEl("text", { class: "axis-label", x: m.l - 8, y: sy(v) + 4, "text-anchor": "end" }, svg).textContent = +v.toFixed(1);
+    svgEl("text", { class: "axis-label", x: m.l - 8, y: sy(v) + 4, "text-anchor": "end" }, svg).textContent = +v.toFixed(2);
   }
   const ticks = Math.min(8, Math.floor(xMax));
   for (let i = 0; i <= ticks; i++) {
@@ -423,12 +451,6 @@ $("#wifi-start").addEventListener("click", async () => {
 
 // --- Health check -----------------------------------------------------------------------
 
-const SEV = {
-  critical: { icon: "✖", label: "Critical" },
-  warning: { icon: "▲", label: "Warning" },
-  info: { icon: "ℹ", label: "Info" },
-  good: { icon: "✔", label: "Looks good" },
-};
 const STEP_ICON = { pending: "○", running: "●", done: "✔", error: "✖" };
 const DETAIL_TAB = { speed: ["speed", "Speed Test"], wifi: ["wifi", "Wi-Fi Scanner"], devices: ["scan", "Network Scanner"] };
 let hcReport = null;
@@ -460,13 +482,7 @@ function scoreTile(sc) {
 
 function renderRecs() {
   const recs = hcReport.recommendations.filter((r) => hcFilter === "all" || r.severity === hcFilter);
-  $("#hc-recs").innerHTML = recs.map((r) => `
-    <article class="rec ${r.severity}">
-      <div class="sev">${SEV[r.severity].icon} ${SEV[r.severity].label} <span class="cat">· ${esc(r.category)}</span></div>
-      <h3>${esc(r.title)}</h3>
-      <p>${esc(r.detail)}</p>
-      ${r.action ? `<p class="action"><b>Recommended change:</b> ${esc(r.action)}</p>` : ""}
-    </article>`).join("") || `<p class="muted">Nothing in this category.</p>`;
+  $("#hc-recs").innerHTML = recs.map(recCard).join("") || `<p class="muted">Nothing in this category.</p>`;
   document.querySelectorAll("#hc-filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === hcFilter)));
 }
 
@@ -557,8 +573,3 @@ function startDiagnosis(mode) {
   });
 }
 document.querySelectorAll("[data-diagnose]").forEach((b) => b.addEventListener("click", () => startDiagnosis(b.dataset.diagnose)));
-
-// --- start ----------------------------------------------------------------------------
-
-const initialTab = location.hash.slice(1);
-showTab(document.getElementById(`tab-${initialTab}`) ? initialTab : "health");

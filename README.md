@@ -11,6 +11,10 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
 | **Speed Test** | Latency (median ping) and jitter, then multi-stream download and upload throughput with a live chart. Uses Cloudflare's speed-test endpoints. |
 | **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs) and response time. Can also run a common-ports scan on each device. |
+| **Public IP** | Your public IPv4/IPv6 address, ISP, ASN, approximate location, time zone and reverse DNS. Can also look up any other public IP. |
+| **Port Scanner (Nmap)** | Runs [Nmap](https://nmap.org) with ready-made profiles (host discovery, top 100, top 1000 + versions, all ports) and optional OS detection and default scripts. Shows live progress, per-device ports, software versions, MAC vendors and OS guesses, with the same security recommendations as the Health Check. |
+| **Wi-Fi Monitor** | Live signal graph colored by access point. Catches roaming between APs and mesh nodes, disconnects, and "sticky" connections that cling to a weak AP while a much stronger one is nearby. Mark locations as you walk around to build a weak-spot survey, and export samples as CSV. |
+| **Traffic Analyzer** | Live packet capture with Wireshark's engine (tshark), explained in plain English: protocol mix, busiest devices, which sites and services were contacted (from DNS and TLS names), a live activity feed and warnings such as unencrypted logins. Can save a `.pcapng` to open in Wireshark. |
 | **Wi-Fi Scanner** | Nearby access points with SSID, BSSID, signal (dBm and quality), channel, band and security. Includes per-band channel congestion charts and a suggested least-crowded channel. |
 
 ## Quick start
@@ -37,7 +41,21 @@ You can also run `pip install -e .` to get a `netapp` command.
 | **macOS** | `system_profiler`. On macOS 14+ SSIDs are hidden unless your terminal/Python has **Location Services** permission. BSSIDs are not exposed. | `ping`, `arp -an` |
 | **Linux** | `nmcli` (NetworkManager) | `ping`, `ip neigh` |
 
-None of the tools need admin/root rights.
+None of the built-in tools need admin/root rights. The two optional external tools are:
+
+| Tool | Install | Notes |
+|---|---|---|
+| **Nmap** (Port Scanner) | Windows/macOS: [nmap.org/download](https://nmap.org/download.html) · macOS: `brew install nmap` · Linux: `sudo apt install nmap` | Works without admin (TCP connect scan). OS detection needs admin/root. |
+| **Wireshark / tshark** (Traffic Analyzer) | [wireshark.org/download](https://www.wireshark.org/download.html). Windows: keep **Npcap** and **TShark** ticked. Linux: `sudo apt install tshark` | Capture permissions: on macOS run Wireshark's "Install ChmodBPF" package; on Linux `sudo usermod -aG wireshark $USER` and log in again. |
+
+NetApp detects both automatically and shows install instructions in the app if they're missing.
+
+**Wi-Fi Monitor** uses `iw` or `nmcli` on Linux and `netsh` on Windows. On macOS it uses CoreWLAN (installed
+automatically through `requirements.txt`), and Location Services permission is needed to see access-point BSSIDs.
+
+**What the Traffic Analyzer can see:** on Wi-Fi and switched networks a computer sees its own traffic plus
+broadcast/multicast from other devices. Seeing every device needs a mirror/SPAN port, a Wi-Fi adapter in monitor
+mode, or a capture on the router.
 
 ## Health Check: quick and full scans
 
@@ -78,7 +96,11 @@ netapp/
     diagnose.py      # quick/full scan orchestration
     advisor.py       # rules that turn results into recommendations + score
     report.py        # HTML / JSON / CSV export and auto-save
-  static/            # index.html, styles.css, app.js (no build step)
+    ipinfo.py        # public IP / ISP / geolocation lookups
+    nmapscan.py      # Nmap runner, progress parsing, XML results
+    wifimonitor.py   # live connection sampling, roam & sticky-client detection
+    traffic.py       # tshark capture + plain-English traffic analysis
+  static/            # index.html, styles.css, app.js + one script per tool (no build step)
 tests/               # parser tests with sample OS output, speed-test & API tests
 ```
 
@@ -105,14 +127,15 @@ pytest
 
 1. Write the logic in `netapp/tools/<tool>.py`. Keep it free of web code so it is easy to test.
 2. Add a route in `server.py`. Return JSON for quick results, or `sse(async_generator)` for a live stream.
-3. Add a tab button and a `<section id="tab-<name>">` in `static/index.html`, and its logic in `static/app.js`
-   (add `loaders.<name>` if the tab should load data when opened).
+3. Add a sidebar button and a `<section id="tab-<name>">` in `static/index.html`. Put its logic in a new
+   `static/<name>.js`, included before `main.js`. Register `loaders.<name>` if the tab should load data when opened.
+   Shared helpers (`api`, `stream`, `lineChart`, `recCard`, `tile`, …) live in `app.js`.
 
 ### Ideas for next tools
 
 - Ping / traceroute with a latency graph
+- Heat-map floor plan for the Wi-Fi survey
 - DNS lookup and DNS server benchmark
-- MAC vendor lookup (IEEE OUI database)
 - Continuous Wi-Fi signal monitor (for walking around to find dead zones)
 - Scan history with trends over time (compare reports)
 - Scheduled scans
@@ -122,5 +145,5 @@ pytest
 
 ## Responsible use
 
-Only scan networks you own or have permission to test. The scanner refuses to scan
-public (non-private) address ranges. By default the server only listens on `localhost`.
+Only scan or capture on networks you own or have permission to test. The network scanner and Nmap
+integration refuse public (non-private) address ranges. By default the server only listens on `localhost`.
