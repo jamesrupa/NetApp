@@ -10,12 +10,12 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 | **Health Check** | One-click **Quick scan** (speed test) or **Full scan** (speed test, Wi-Fi signal and channel analysis, device discovery and an open-port security check). Ends with a health score and a prioritized list of recommended changes. Results export as HTML/JSON/CSV. |
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
 | **Speed Test** | Ping, jitter, download, upload and packet loss using the official **Speedtest.net (Ookla) CLI**, with a server picker and a shareable result link. Falls back to Cloudflare's speed-test endpoints when the CLI isn't installed. Live throughput chart. |
-| **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs) and response time. Can also run a common-ports scan on each device. |
+| **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs), response time and a device-type guess (printer, NAS, camera, TV…). Devices with a web interface (router, printer, NAS) get a clickable IP that opens it in your browser. Can also run a common-ports scan on each device. |
 | **Public IP** | Your public IPv4/IPv6 address, ISP, ASN, approximate location, time zone and reverse DNS. Can also look up any other public IP. |
-| **Port Scanner (Nmap)** | Runs [Nmap](https://nmap.org) with ready-made profiles (host discovery, top 100, top 1000 + versions, all ports) and optional OS detection and default scripts. Shows live progress, per-device ports, software versions, MAC vendors and OS guesses, with the same security recommendations as the Health Check. |
-| **Wi-Fi Monitor** | Live signal graph colored by access point. Catches roaming between APs and mesh nodes, disconnects, and "sticky" connections that cling to a weak AP while a much stronger one is nearby. Mark locations as you walk around to build a weak-spot survey, and export samples as CSV. |
+| **Port Scanner (Nmap)** | Runs [Nmap](https://nmap.org) with ready-made profiles (host discovery, top 100, top 1000 + versions, all ports) and optional OS detection and default scripts. Works on LAN ranges, **public IPs and hostnames** (public targets need you to confirm you own them or have permission; up to a /24). Shows live progress, per-device ports, software versions, MAC vendors, OS guesses and web-interface links, with the same security recommendations as the Health Check. |
+| **Wi-Fi Monitor** | Live signal graph colored by access point, with a signal dial beside it. Catches roaming between APs and mesh nodes, disconnects, and "sticky" connections that cling to a weak AP while a much stronger one is nearby. Mark locations as you walk around to build a weak-spot survey, and export samples as CSV. |
 | **Traffic Analyzer** | Live packet capture with Wireshark's engine (tshark), explained in plain English: protocol mix, busiest devices, which sites and services were contacted (from DNS and TLS names), a live activity feed and warnings such as unencrypted logins. Can save a `.pcapng` to open in Wireshark. |
-| **Wi-Fi Scanner** | Nearby access points with SSID, BSSID, signal (dBm and quality), channel, band and security. Includes per-band channel congestion charts and a suggested least-crowded channel. |
+| **Wi-Fi Scanner** | Nearby access points with SSID, BSSID, signal (dBm and quality), channel, band and security. Channel-usage charts for **2.4, 5 and 6 GHz**, the quietest channel per band, and whether you should change the channel your own network uses. |
 
 ## Quick start
 
@@ -124,8 +124,13 @@ Some background on the techniques used:
   the MAC was made up by the device for privacy, as modern phones and laptops do.
 - **Speed test**: several parallel HTTP streams fill the pipe. The first second is ignored (TCP slow start),
   and the result is the average of 250 ms samples after that.
-- **2.4 GHz channels** overlap; only 1, 6 and 11 don't. The recommendation scores each of those by how many
-  nearby networks overlap it, weighted by their signal strength.
+- **Channel recommendations** score each candidate channel by the nearby networks that overlap it, weighted by
+  signal strength. Your own access points and mesh nodes don't count against you. The candidates are:
+  - **2.4 GHz:** 1, 6 and 11, the only channels that don't overlap each other.
+  - **5 GHz:** channels that need no radar checks (non-DFS). Neighbours in the same 80 MHz block count half.
+  - **6 GHz:** the preferred scanning channels (PSC) that Wi-Fi 6E/7 devices look at first.
+
+  A switch is only recommended when it is meaningfully better than the current channel.
 
 ## Development
 

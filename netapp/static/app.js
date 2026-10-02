@@ -203,7 +203,7 @@ function barChart(container, bars, { ariaLabel }) {
       // rounded data-end, square at the baseline
       svgEl("path", { class: "bar", d: `M${x},${m.t + ih}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${m.t + ih}Z` }, svg);
     }
-    if (i % labelEvery === 0) svgEl("text", { class: "axis-label", x: cx, y: H - 8, "text-anchor": "middle" }, svg).textContent = b.label;
+    if (i % labelEvery === 0 || b.strong) svgEl("text", { class: `axis-label${b.strong ? " strong" : ""}`, x: cx, y: H - 8, "text-anchor": "middle" }, svg).textContent = b.label;
     const hit = svgEl("rect", { class: "hit", x: cx - step / 2, y: m.t, width: step, height: ih }, svg);
     hit.addEventListener("mousemove", (e) => showTip(b.tip, e.clientX, e.clientY));
     hit.addEventListener("mouseleave", hideTip);
@@ -265,69 +265,91 @@ function drawSpeed() {
 drawSpeed();
 chartRedrawers.push(() => { if (!$("#tab-speed").hidden) drawSpeed(); });
 
-// Speedometer dial: a 270° gauge with a speedtest.net-style scale that gives the low end more room.
-const DIAL = { cx: 150, cy: 150, r: 112, start: -135, end: 135 };
-const DIAL_SCALES = [[0, 5, 10, 50, 100, 250, 500, 750, 1000], [0, 10, 50, 100, 250, 500, 1000, 2500, 5000]];
-let dialScale = DIAL_SCALES[0];
-let dialEls = null;
+/**
+ * A 270° dial (gauge) drawn in SVG, shared by the Speed Test and the Wi-Fi Monitor.
+ * ticks: the scale's labelled values; each interval between ticks gets the same arc length,
+ * so a non-linear scale (0, 5, 10, 50, 100…) gives the low end more room.
+ */
+function createDial(box, { ticks, tickLabel = (v) => v }) {
+  const C = { cx: 150, cy: 150, r: 112, start: -135, end: 135 };
+  const point = (angle, r) => {
+    const a = (angle * Math.PI) / 180;
+    return [C.cx + r * Math.sin(a), C.cy - r * Math.cos(a)];
+  };
+  let els = null;
+  const dial = {
+    ticks,
+    fraction(v) {
+      const t = dial.ticks;
+      if (v <= t[0]) return 0;
+      if (v >= t[t.length - 1]) return 1;
+      const i = t.findIndex((x) => x > v) - 1;
+      return (i + (v - t[i]) / (t[i + 1] - t[i])) / (t.length - 1);
+    },
+    build() {
+      box.innerHTML = "";
+      const svg = svgEl("svg", { viewBox: "0 0 300 262", role: "img", "aria-label": "Dial" }, box);
+      const [sx, sy] = point(C.start, C.r), [ex, ey] = point(C.end, C.r);
+      const arc = `M${sx},${sy} A${C.r},${C.r} 0 1 1 ${ex},${ey}`;
+      svgEl("path", { class: "track", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round" }, svg);
+      const fill = svgEl("path", { class: "fill", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round",
+        pathLength: 100, "stroke-dasharray": "0 100" }, svg);
+      dial.ticks.forEach((v, i) => {
+        const angle = C.start + ((C.end - C.start) * i) / (dial.ticks.length - 1);
+        const [x1, y1] = point(angle, C.r - 14), [x2, y2] = point(angle, C.r - 20);
+        svgEl("line", { class: "tick", x1, y1, x2, y2 }, svg);
+        const [lx, ly] = point(angle, C.r - 34);
+        svgEl("text", { class: "tick-label", x: lx, y: ly + 4, "text-anchor": "middle" }, svg).textContent = tickLabel(v);
+      });
+      const needle = svgEl("g", { class: "needle" }, svg);
+      needle.style.transformOrigin = `${C.cx}px ${C.cy}px`;
+      needle.style.transform = `rotate(${C.start}deg)`;
+      svgEl("line", { x1: C.cx, y1: C.cy + 10, x2: C.cx, y2: C.cy - C.r + 30 }, needle);
+      svgEl("circle", { class: "hub", cx: C.cx, cy: C.cy, r: 7 }, svg);
+      const text = (cls, dy) => svgEl("text", { class: cls, x: C.cx, y: C.cy + dy, "text-anchor": "middle" }, svg);
+      els = { svg, fill, needle, label: text("phase", 44), value: text("value", 86), unit: text("unit", 106) };
+    },
+    /** value: where the needle points (null = rest); text: the big number; tone: CSS colour class for the arc. */
+    set({ value = null, text = "–", unit = "", label = "", tone = "" }) {
+      if (!els) dial.build();
+      const frac = value == null ? 0 : dial.fraction(value);
+      els.fill.setAttribute("stroke-dasharray", `${(frac * 100).toFixed(2)} 100`);
+      els.fill.setAttribute("class", `fill ${tone}`);
+      els.needle.style.transform = `rotate(${C.start + frac * (C.end - C.start)}deg)`;
+      els.label.textContent = label;
+      els.value.textContent = text;
+      els.unit.textContent = unit;
+      els.svg.setAttribute("aria-label", `${label}: ${text} ${unit}`.trim());
+    },
+  };
+  dial.build();
+  return dial;
+}
 
-function dialFraction(v) {
-  const t = dialScale;
-  if (v <= 0) return 0;
-  if (v >= t[t.length - 1]) return 1;
-  const i = t.findIndex((x) => x > v) - 1;  // equal space per tick interval, linear within it
-  return (i + (v - t[i]) / (t[i + 1] - t[i])) / (t.length - 1);
-}
-function dialPoint(angle, r) {
-  const a = (angle * Math.PI) / 180;
-  return [DIAL.cx + r * Math.sin(a), DIAL.cy - r * Math.cos(a)];
-}
+// Speed test dial: speedtest.net-style scale, switching to a 5 Gbps scale for multi-gigabit lines.
+const DIAL_SCALES = [[0, 5, 10, 50, 100, 250, 500, 750, 1000], [0, 10, 50, 100, 250, 500, 1000, 2500, 5000]];
+const speedDial = createDial($("#speed-dial"), { ticks: DIAL_SCALES[0], tickLabel: (v) => (v >= 1000 ? `${v / 1000}G` : v) });
 
 function buildDial() {
-  const box = $("#speed-dial");
-  box.innerHTML = "";
-  const svg = svgEl("svg", { viewBox: "0 0 300 262", role: "img", "aria-label": "Speed dial" }, box);
-  const [sx, sy] = dialPoint(DIAL.start, DIAL.r), [ex, ey] = dialPoint(DIAL.end, DIAL.r);
-  const arc = `M${sx},${sy} A${DIAL.r},${DIAL.r} 0 1 1 ${ex},${ey}`;
-  svgEl("path", { class: "track", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round" }, svg);
-  const fill = svgEl("path", { class: "fill", d: arc, fill: "none", "stroke-width": 16, "stroke-linecap": "round",
-    pathLength: 100, "stroke-dasharray": "0 100" }, svg);
-  dialScale.forEach((v, i) => {
-    const angle = DIAL.start + ((DIAL.end - DIAL.start) * i) / (dialScale.length - 1);
-    const [x1, y1] = dialPoint(angle, DIAL.r - 14), [x2, y2] = dialPoint(angle, DIAL.r - 20);
-    svgEl("line", { class: "tick", x1, y1, x2, y2 }, svg);
-    const [lx, ly] = dialPoint(angle, DIAL.r - 34);
-    svgEl("text", { class: "tick-label", x: lx, y: ly + 4, "text-anchor": "middle" }, svg).textContent = v >= 1000 ? `${v / 1000}G` : v;
-  });
-  const needle = svgEl("g", { class: "needle" }, svg);
-  needle.style.transformOrigin = `${DIAL.cx}px ${DIAL.cy}px`;
-  needle.style.transform = `rotate(${DIAL.start}deg)`;
-  svgEl("line", { x1: DIAL.cx, y1: DIAL.cy + 10, x2: DIAL.cx, y2: DIAL.cy - DIAL.r + 30 }, needle);
-  svgEl("circle", { class: "hub", cx: DIAL.cx, cy: DIAL.cy, r: 7 }, svg);
-  const phase = svgEl("text", { class: "phase", x: DIAL.cx, y: DIAL.cy + 44, "text-anchor": "middle" }, svg);
-  const value = svgEl("text", { class: "value", x: DIAL.cx, y: DIAL.cy + 86, "text-anchor": "middle" }, svg);
-  const unit = svgEl("text", { class: "unit", x: DIAL.cx, y: DIAL.cy + 106, "text-anchor": "middle" }, svg);
-  dialEls = { svg, fill, needle, phase, value, unit };
+  speedDial.ticks = DIAL_SCALES[0];
+  speedDial.build();
   setDial(0, "ready");
 }
 
-/** Move the dial. phase: ready | latency | download | upload | done. For latency, v is ms (shown, not plotted). */
+/** Move the speed dial. phase: ready | latency | download | upload | done. For latency, v is ms (shown, not plotted). */
 function setDial(v, phase, extra = "") {
-  if (!dialEls) buildDial();
-  if (phase !== "latency" && v > dialScale[dialScale.length - 1] && dialScale === DIAL_SCALES[0]) {
-    dialScale = DIAL_SCALES[1];  // multi-gigabit connection: switch to the wider scale
-    buildDial();
+  if (phase !== "latency" && v > speedDial.ticks[speedDial.ticks.length - 1] && speedDial.ticks === DIAL_SCALES[0]) {
+    speedDial.ticks = DIAL_SCALES[1];  // multi-gigabit connection: switch to the wider scale
+    speedDial.build();
   }
-  const plotted = phase === "download" || phase === "upload" ? v : phase === "done" ? v : 0;
-  const frac = dialFraction(plotted);
-  dialEls.fill.setAttribute("stroke-dasharray", `${(frac * 100).toFixed(2)} 100`);
-  dialEls.fill.classList.toggle("upload", phase === "upload");
-  dialEls.needle.style.transform = `rotate(${DIAL.start + frac * (DIAL.end - DIAL.start)}deg)`;
   const labels = { ready: "Ready", latency: "Ping", download: "↓ Download", upload: "↑ Upload", done: "↓ Download" };
-  dialEls.phase.textContent = labels[phase] || "";
-  dialEls.value.textContent = phase === "ready" ? "–" : phase === "latency" ? Math.round(v) : v >= 100 ? Math.round(v) : v.toFixed(1);
-  dialEls.unit.textContent = phase === "latency" ? "ms" : extra || "Mbps";
-  dialEls.svg.setAttribute("aria-label", `${labels[phase] || "Speed"}: ${dialEls.value.textContent} ${dialEls.unit.textContent}`);
+  speedDial.set({
+    value: ["download", "upload", "done"].includes(phase) ? v : null,
+    text: phase === "ready" ? "–" : phase === "latency" ? String(Math.round(v)) : v >= 100 ? String(Math.round(v)) : v.toFixed(1),
+    unit: phase === "latency" ? "ms" : extra || "Mbps",
+    label: labels[phase] || "",
+    tone: phase === "upload" ? "upload" : "",
+  });
 }
 buildDial();
 
@@ -336,7 +358,6 @@ function resetSpeed() {
   ["#sp-ping", "#sp-jitter", "#sp-down", "#sp-up", "#sp-loss"].forEach((s) => { $(s).textContent = "–"; });
   $("#sp-loss-tile").hidden = true;
   $("#sp-server-info").innerHTML = "";
-  dialScale = DIAL_SCALES[0];
   buildDial();
   drawSpeed();
 }
@@ -454,6 +475,32 @@ loaders.scan = () => loadOverview();
 const hosts = new Map();
 const ipKey = (ip) => ip.split(".").reduce((a, o) => a * 256 + Number(o), 0);
 
+// Ports that usually serve a web interface (router, printer, NAS and camera admin pages), best first.
+const WEB_PORTS = [[443, "https"], [80, "http"], [8443, "https"], [8080, "http"], [5001, "https"], [8000, "http"], [8888, "http"], [631, "http"]];
+
+/** Browser links for a device's web interfaces, e.g. http://192.168.1.20/ or https://192.168.1.5:8443/. */
+function webUrls(ip, ports) {
+  const open = new Set(ports);
+  return WEB_PORTS.filter(([p]) => open.has(p)).map(([p, scheme]) => ({
+    port: p,
+    url: `${scheme}://${ip}${(p === 80 && scheme === "http") || (p === 443 && scheme === "https") ? "" : `:${p}`}/`,
+  }));
+}
+
+/** A best guess at what a device is from its open ports (shown as a badge). */
+function deviceKind(ports) {
+  const open = new Set(ports);
+  if (open.has(9100) || open.has(631) || open.has(515)) return "Printer";
+  if (open.has(554)) return "Camera";
+  if (open.has(8008) || open.has(8009)) return "Chromecast / TV";
+  if (open.has(62078)) return "Apple device";
+  if (open.has(3389) || open.has(135)) return "Windows PC";
+  if (open.has(5001)) return "NAS";
+  return null;
+}
+
+const openLink = (u, text) => `<a class="btn small" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(u.url)} in a new tab">${text} ↗</a>`;
+
 function renderHosts() {
   const rows = [...hosts.values()].sort((a, b) => ipKey(a.ip) - ipKey(b.ip));
   $("#scan-rows").innerHTML = rows.map((h) => {
@@ -462,11 +509,18 @@ function renderHosts() {
     const mac = h.mac
       ? `${esc(h.mac)}${h.mac_randomized ? `<span class="sub">Private / randomized MAC</span>` : ""}`
       : "–";
+    const portList = h.ports ? h.ports.open.map((p) => p.port) : (h.open_ports || []);
+    const urls = webUrls(h.ip, portList);
+    const kind = deviceKind(portList);
+    const web = urls.length ? `<div class="web-links">${urls.map((u) => openLink(u, `Open :${u.port}`)).join("")}</div>` : "";
     const ports = h.ports
-      ? (h.ports.open.length ? h.ports.open.map((p) => `<span class="badge" title="${esc(p.service)}">${p.port} ${esc(p.service)}</span>`).join("") : `<span class="sub">No common ports open</span>`)
-      : `${(h.open_ports || []).map((p) => `<span class="badge">${p}</span>`).join("")}<button class="btn small" data-ports="${esc(h.ip)}">${h.scanning ? "Scanning…" : "Scan ports"}</button>`;
+      ? (h.ports.open.length ? h.ports.open.map((p) => `<span class="badge" title="${esc(p.service)}">${p.port} ${esc(p.service)}</span>`).join("") : `<span class="sub">No common ports open</span>`) + web
+      : `${(h.open_ports || []).map((p) => `<span class="badge">${p}</span>`).join("")}<button class="btn small" data-ports="${esc(h.ip)}">${h.scanning ? "Scanning…" : "Scan ports"}</button>${web}`;
+    const ipCell = urls.length
+      ? `<a class="ip-link" href="${esc(urls[0].url)}" target="_blank" rel="noopener noreferrer" title="Open its web interface">${esc(h.ip)} ↗</a>`
+      : `<b>${esc(h.ip)}</b>`;
     return `<tr>
-      <td class="mono"><b>${esc(h.ip)}</b> ${tags}</td>
+      <td class="mono">${ipCell} ${tags}${kind ? ` <span class="badge">${kind}</span>` : ""}</td>
       <td>${esc(h.hostname || "–")}</td>
       <td class="mono">${mac}</td>
       <td>${h.methods.map((m) => `<span class="badge">${m.toUpperCase()}</span>`).join("")}</td>
@@ -586,31 +640,51 @@ function renderWifi(data) {
   }).join("") || `<tr><td colspan="6" class="empty">No networks found.</td></tr>`;
 
   const recs = data.channels.recommendations;
+  const conn = data.channels.connected;
   const connected = nets.find((n) => n.in_use);
+  const CANDIDATE_NOTE = { "2.4 GHz": "Least overlap among 1 / 6 / 11", "5 GHz": "Quietest channel without radar checks (non-DFS)",
+    "6 GHz": "Quietest preferred scanning channel (PSC)" };
   $("#wifi-recs").innerHTML = [
     ["Networks found", nets.length, `${new Set(nets.map((n) => n.ssid).filter(Boolean)).size} unique SSIDs`],
-    connected && ["Connected to", connected.redacted ? "Hidden by macOS" : esc(connected.ssid || "(hidden)"), `Channel ${connected.channel ?? "?"} · ${connected.signal_dbm ?? "?"} dBm (${quality(connected.signal_dbm).label})`],
-    recs["2.4 GHz"] && ["Best 2.4 GHz channel", recs["2.4 GHz"].channel, "Least overlap among 1 / 6 / 11"],
-    recs["5 GHz"] && ["Best 5 GHz channel", recs["5 GHz"].channel, `${recs["5 GHz"].networks_on_channel} nearby network(s) on it`],
+    connected && ["Connected to", connected.redacted ? "Hidden by macOS" : esc(connected.ssid || "(hidden)"),
+      `${esc(connected.band || "")} · channel ${connected.channel ?? "?"} · ${connected.signal_dbm ?? "?"} dBm (${quality(connected.signal_dbm).label})`],
+    conn && (conn.change
+      ? [`<span class="t-warning">▲</span> Your channel`, `${conn.current} → ${conn.channel}`,
+         `Switch: ${conn.overlapping} neighbouring network${conn.overlapping === 1 ? "" : "s"} overlap ${conn.current}`]
+      : [`<span class="t-good">✔</span> Your channel`, `${conn.current}`, "Good choice, no change needed"]),
+    ...["2.4 GHz", "5 GHz", "6 GHz"].map((band) => recs[band]
+      ? [`Best ${band} channel`, recs[band].channel, CANDIDATE_NOTE[band]]
+      : band === "6 GHz" && ["6 GHz", "Clear", "No 6 GHz networks nearby (needs a Wi-Fi 6E/7 router and device)"]),
   ].filter(Boolean).map(([label, value, note]) => `
     <div class="tile"><div class="tile-label">${label}</div><div class="tile-value">${value}</div><div class="tile-note">${note}</div></div>`).join("");
 
+  // One chart per band. 6 GHz is always shown so you can see whether anything uses it.
+  const AXIS = {
+    "2.4 GHz": Array.from({ length: 13 }, (_, i) => i + 1),
+    "5 GHz": [36, 40, 44, 48, 149, 153, 157, 161, 165],
+    "6 GHz": [5, 21, 37, 53, 69, 85, 101, 117, 133, 149, 165, 181, 197, 213, 229],
+  };
   const charts = $("#wifi-charts");
   charts.innerHTML = "";
-  for (const [band, usage] of Object.entries(data.channels.usage).sort()) {
+  for (const band of ["2.4 GHz", "5 GHz", "6 GHz"]) {
+    const usage = data.channels.usage[band] || {};
     const card = document.createElement("div");
     card.className = "card";
-    card.innerHTML = `<div class="card-head"><h2>${esc(band)} channel usage</h2><span class="sub">Networks per channel</span></div><div class="chart"></div>`;
+    const mine = connected?.band === band ? connected.channel : null;
+    const best = recs[band]?.channel;
+    const notes = [mine && `Your channel: <b>${mine}</b>`, best && `Recommended: <b>${best}</b>`].filter(Boolean).join(" · ");
+    card.innerHTML = `<div class="card-head"><h2>${esc(band)} channel usage</h2><span class="sub">Networks per channel</span></div>
+      <div class="chart"></div><p class="sub chart-note">${notes || (band === "6 GHz" && !Object.keys(usage).length
+        ? "No 6 GHz networks seen. 6 GHz needs a Wi-Fi 6E/7 router and a device that supports it." : "")}</p>`;
     charts.appendChild(card);
-    const channels = band === "2.4 GHz"
-      ? Array.from({ length: 13 }, (_, i) => i + 1)
-      : Object.keys(usage).map(Number).sort((a, b) => a - b);
+    const channels = [...new Set([...AXIS[band], ...Object.keys(usage).map(Number)])].sort((a, b) => a - b);
     const bars = channels.map((ch) => {
       const names = nets.filter((n) => n.band === band && n.channel === ch).map((n) => esc(n.ssid || "(hidden)"));
       const count = usage[ch] || 0;
+      const tags = [ch === mine && "your channel", ch === best && "recommended"].filter(Boolean).join(", ");
       return {
-        label: ch, value: count,
-        tip: `Channel <b>${ch}</b>: <b>${count}</b> network${count === 1 ? "" : "s"}${names.length ? "<br>" + names.slice(0, 6).join("<br>") + (names.length > 6 ? `<br>+${names.length - 6} more` : "") : ""}`,
+        label: ch, value: count, strong: ch === mine || ch === best,
+        tip: `Channel <b>${ch}</b>${tags ? ` (${tags})` : ""}: <b>${count}</b> network${count === 1 ? "" : "s"}${names.length ? "<br>" + names.slice(0, 6).join("<br>") + (names.length > 6 ? `<br>+${names.length - 6} more` : "") : ""}`,
       };
     });
     barChart(card.querySelector(".chart"), bars, { ariaLabel: `${band} networks per channel` });

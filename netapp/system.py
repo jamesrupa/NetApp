@@ -119,3 +119,29 @@ async def stream_cmd(args: list[str]):
                 await loop.run_in_executor(_executor, proc.wait, 3)
             except subprocess.TimeoutExpired:
                 proc.kill()
+
+
+def raise_open_file_limit(target: int = 4096) -> int:
+    """Raise this process's open-file limit (macOS defaults to 256, too low for parallel scans).
+
+    Returns the resulting soft limit. Each probe uses one socket (a file descriptor).
+    """
+    try:
+        import resource
+    except ImportError:  # Windows has no such limit
+        return target
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    wanted = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if soft != resource.RLIM_INFINITY and soft < wanted:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+            soft = wanted
+        except (ValueError, OSError):
+            pass
+    return target if soft == resource.RLIM_INFINITY else soft
+
+
+def safe_concurrency(sockets_per_task: int, wanted: int) -> int:
+    """How many tasks can run at once without running out of file descriptors."""
+    limit = raise_open_file_limit()
+    return max(4, min(wanted, (limit - 64) // max(1, sockets_per_task + 1)))

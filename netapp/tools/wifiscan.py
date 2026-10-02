@@ -20,6 +20,12 @@ from . import macos
 CHANNELS_24 = [1, 6, 11]  # the only non-overlapping 20 MHz channels in 2.4 GHz
 # 5 GHz channels that need no radar detection (DFS), so every router supports them.
 CHANNELS_5_NON_DFS = [36, 40, 44, 48, 149, 153, 157, 161, 165]
+CHANNELS_5_DFS = range(52, 145)
+# 6 GHz "preferred scanning channels": Wi-Fi 6E/7 devices look for networks here first.
+CHANNELS_6_PSC = [5, 21, 37, 53, 69, 85, 101, 117, 133, 149, 165, 181, 197, 213, 229]
+CANDIDATES = {"2.4 GHz": CHANNELS_24, "5 GHz": CHANNELS_5_NON_DFS, "6 GHz": CHANNELS_6_PSC}
+# Worth recommending a change only if the current channel is this much busier (≈ one strong neighbour).
+CHANGE_THRESHOLD = 0.6
 
 
 class WifiError(RuntimeError):
@@ -290,31 +296,79 @@ def _overlap_24(a: int, b: int) -> float:
     return max(0.0, 1 - abs(a - b) / 5)
 
 
+_BLOCKS_5 = [36, 52, 100, 116, 132, 149]  # 80 MHz channel groups in 5 GHz
+
+
+def _block(band: str, ch: int) -> int | None:
+    """Which 80 MHz block a 5/6 GHz channel belongs to (wide channels on the same block overlap)."""
+    if band == "5 GHz":
+        return next((b for b in reversed(_BLOCKS_5) if b <= ch <= b + 16), None)
+    if band == "6 GHz":
+        return (ch - 1) // 16
+    return None
+
+
+def interference(band: str, a: int, b: int) -> float:
+    if band == "2.4 GHz":
+        return _overlap_24(a, b)
+    if a == b:
+        return 1.0
+    block = _block(band, a)
+    return 0.5 if block is not None and block == _block(band, b) else 0.0
+
+
+def channel_scores(band: str, nets: list[dict], channels, own_ssid: str | None = None) -> dict[int, float]:
+    """Congestion per channel: overlapping neighbours weighted by how strongly we hear them.
+
+    Networks with the same name as yours (your own access points / mesh nodes) don't count.
+    """
+    neighbours = [n for n in nets if n.get("band") == band and n.get("channel")
+                  and not (own_ssid and n.get("ssid") == own_ssid)]
+    return {ch: round(sum(interference(band, ch, n["channel"]) * (n.get("signal_percent") or 50) / 100
+                          for n in neighbours), 2) for ch in channels}
+
+
+def recommend_channel(band: str, nets: list[dict], current: int | None = None, own_ssid: str | None = None) -> dict:
+    candidates = list(CANDIDATES.get(band, []))
+    scores = channel_scores(band, nets, candidates, own_ssid)
+    best = min(candidates, key=lambda c: (scores[c], candidates.index(c))) if candidates else None
+    result = {"band": band, "channel": best, "score": scores.get(best), "scores": scores,
+              "networks": sum(1 for n in nets if n.get("band") == band and not (own_ssid and n.get("ssid") == own_ssid))}
+    if current:
+        cur_score = channel_scores(band, nets, [current], own_ssid)[current]
+        overlapping = [n for n in nets if n.get("band") == band and n.get("channel")
+                       and not (own_ssid and n.get("ssid") == own_ssid) and interference(band, current, n["channel"]) > 0]
+        off_grid = band == "2.4 GHz" and current not in CHANNELS_24
+        result.update(
+            current=current,
+            current_score=cur_score,
+            overlapping=len(overlapping),
+            off_grid=off_grid,
+            dfs=band == "5 GHz" and current in CHANNELS_5_DFS,
+            change=best is not None and best != current
+                   and (off_grid or cur_score - (scores[best] or 0) >= CHANGE_THRESHOLD),
+        )
+    return result
+
+
 def channel_report(nets: list[dict]) -> dict:
-    """Per-band channel usage plus a suggested least-congested channel."""
+    """Per-band channel usage, the least-congested channel per band, and advice for your own network."""
     usage: dict[str, dict[int, int]] = {}
     for n in nets:
         if n["band"] and n["channel"]:
             usage.setdefault(n["band"], {})
             usage[n["band"]][n["channel"]] = usage[n["band"]].get(n["channel"], 0) + 1
 
-    recommendations = {}
-    nets_24 = [n for n in nets if n["band"] == "2.4 GHz" and n["channel"]]
-    if nets_24:
-        scores = {
-            ch: round(sum(_overlap_24(ch, n["channel"]) * (n["signal_percent"] or 50) / 100 for n in nets_24), 2)
-            for ch in CHANNELS_24
-        }
-        best = min(scores, key=scores.get)
-        recommendations["2.4 GHz"] = {"channel": best, "scores": scores}
-    if "5 GHz" in usage:
-        used = usage["5 GHz"]
-        best5 = min(CHANNELS_5_NON_DFS, key=lambda c: (used.get(c, 0), CHANNELS_5_NON_DFS.index(c)))
-        recommendations["5 GHz"] = {"channel": best5, "networks_on_channel": used.get(best5, 0)}
-    return {
+    connected = next((n for n in nets if n.get("in_use")), None)
+    own = connected["ssid"] if connected and connected.get("ssid") else None
+    recommendations = {band: recommend_channel(band, nets, own_ssid=own) for band in CANDIDATES if band in usage}
+    report = {
         "usage": {band: dict(sorted(ch.items())) for band, ch in usage.items()},
         "recommendations": recommendations,
     }
+    if connected and connected.get("band") in CANDIDATES and connected.get("channel"):
+        report["connected"] = recommend_channel(connected["band"], nets, connected["channel"], own)
+    return report
 
 
 async def scan_wifi() -> dict:

@@ -207,19 +207,25 @@
       <div class="panel-head">
         <div>
           <h1>Port Scanner (Nmap)</h1>
-          <p class="muted">Find open ports and the software behind them using Nmap. Only scan networks you own or are allowed to test.</p>
+          <p class="muted">Find open ports and the software behind them using Nmap: on your LAN or on public addresses you own.
+            Only scan systems you own or are allowed to test.</p>
         </div>
       </div>
       <div class="card notice" id="nmap-missing" hidden></div>
       <form class="toolbar" id="nmap-form">
-        <label>Target <input id="nmap-target" placeholder="192.168.1.0/24" spellcheck="false"></label>
+        <label>Target <input id="nmap-target" placeholder="192.168.1.0/24, 203.0.113.7 or example.com" spellcheck="false"></label>
+        <button class="btn" id="nmap-myip" type="button" title="Fill in this connection's public IP address">My public IP</button>
         <label>Scan type <select id="nmap-profile"></select></label>
         <label class="check"><input type="checkbox" id="nmap-os"> OS detection <span class="sub" id="nmap-os-note"></span></label>
         <label class="check"><input type="checkbox" id="nmap-scripts"> Default scripts</label>
+        <label class="check" id="nmap-auth-wrap" hidden><input type="checkbox" id="nmap-auth"> I own this or have permission to scan it</label>
         <button class="btn primary" id="nmap-start" type="submit">Run Nmap</button>
         <button class="btn" id="nmap-stop" type="button" hidden>Stop</button>
       </form>
       <p class="sub" id="nmap-profile-desc"></p>
+      <p class="sub" id="nmap-public-note" hidden>Public target: scanning from inside your own network can show more than the
+        internet sees, because some routers loop the request back internally. To see exactly what's exposed, scan from
+        another connection (e.g. a phone hotspot).</p>
       <div class="progress" aria-hidden="true"><div id="nmap-bar"></div></div>
       <p class="status" id="nmap-status">Choose a target and scan type, then press <b>Run Nmap</b>.</p>
       <p class="mono sub" id="nmap-command"></p>
@@ -244,7 +250,7 @@
         <button class="btn" id="mon-mark" type="button" disabled>Mark location</button>
         <button class="btn" id="mon-export" type="button" disabled>Export CSV</button>
       </form>
-      <div class="card notice" id="mon-location" hidden></div>
+      <div class="card notice" id="mon-loc-notice" hidden></div>
       <p class="status" id="mon-status">Press <b>Start monitoring</b>. To survey your home, type a room name, press <b>Mark location</b>,
         stand there for 15–30 seconds, then move to the next room.</p>
       <div class="tiles" id="mon-tiles"></div>
@@ -253,7 +259,10 @@
           <h2>Signal strength</h2>
           <div class="legend" id="mon-legend"></div>
         </div>
-        <div class="chart" id="mon-chart"></div>
+        <div class="speed-viz">
+          <div class="dial" id="mon-dial"></div>
+          <div class="chart" id="mon-chart"></div>
+        </div>
       </div>
       <div class="grid-2 top-gap">
         <div class="card">

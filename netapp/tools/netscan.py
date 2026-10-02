@@ -18,12 +18,13 @@ import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from ..system import IS_LINUX, IS_MAC, IS_WINDOWS, run_blocking, run_cmd
+from ..system import IS_LINUX, IS_MAC, IS_WINDOWS, run_blocking, run_cmd, safe_concurrency
 from .netinfo import default_gateway, local_networks
 
 MAX_HOSTS = 1024  # refuse anything bigger than a /22
 
-DISCOVERY_PORTS = [80, 443, 22, 445, 139, 53, 8080, 62078]
+# Common ports that answer on most device types (web UIs, SSH, file sharing, Apple devices, printers).
+DISCOVERY_PORTS = [80, 443, 22, 445, 139, 53, 8080, 8443, 62078, 631, 9100]
 
 COMMON_PORTS: dict[int, str] = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS", 67: "DHCP", 80: "HTTP",
@@ -191,6 +192,7 @@ async def scan_network(
 ) -> AsyncIterator[dict]:
     """Sweep a subnet, yielding events: start, host, progress, done."""
     net = resolve_target(cidr)
+    concurrency = safe_concurrency(len(DISCOVERY_PORTS), concurrency)
     hosts = [str(h) for h in net.hosts()] if net.prefixlen < 31 else [str(h) for h in net]
     own_ips = {n["address"] for n in local_networks()}
     gateway = await default_gateway()
@@ -250,6 +252,7 @@ async def scan_ports(
 ) -> dict:
     ip = check_private_host(host)
     ports = ports or sorted(COMMON_PORTS)
+    concurrency = safe_concurrency(1, concurrency)
     sem = asyncio.Semaphore(concurrency)
 
     async def one(port: int) -> tuple[int, str]:

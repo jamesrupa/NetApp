@@ -30,6 +30,7 @@ async function loadNmap() {
   }
   const o = await loadOverview();
   if (!$("#nmap-target").value && o?.networks?.length) $("#nmap-target").value = o.networks[0].network;
+  syncPublic();
 }
 loaders.nmap = loadNmap;
 
@@ -60,9 +61,44 @@ function renderNmapResult(r) {
     const table = isDiscovery ? "" : rows
       ? `<div class="table-wrap"><table><thead><tr><th>Port</th><th>Service</th><th>Software / version</th><th>State</th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<p class="sub">No open ports found in the scanned range.</p>`;
-    return `<div class="card host-card"><h3 class="mono">${esc(h.ip)}</h3><div class="meta">${meta || "&nbsp;"}</div>${table}</div>`;
+    const tcpOpen = h.ports.filter((p) => p.protocol === "tcp" && p.state === "open").map((p) => p.port);
+    const urls = webUrls(h.ip, tcpOpen);
+    const kind = deviceKind(tcpOpen);
+    const title = urls.length
+      ? `<a class="ip-link" href="${esc(urls[0].url)}" target="_blank" rel="noopener noreferrer" title="Open its web interface">${esc(h.ip)} ↗</a>`
+      : esc(h.ip);
+    const web = urls.length ? `<div class="web-links">${urls.map((u) => openLink(u, `Open :${u.port}`)).join("")}</div>` : "";
+    return `<div class="card host-card"><h3 class="mono">${title}${kind ? ` <span class="badge">${kind}</span>` : ""}</h3>
+      <div class="meta">${meta || "&nbsp;"}</div>${web}${table}</div>`;
   }).join("");
 }
+
+// Public targets (anything outside the private/LAN ranges, and hostnames) need explicit permission.
+function looksPublic(target) {
+  const t = target.trim();
+  const m = t.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}(\/\d{1,2})?$/);
+  if (!t) return false;
+  if (!m) return !/^localhost$/i.test(t);  // a hostname: the server resolves and decides
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return !(a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254));
+}
+function syncPublic() {
+  const pub = looksPublic($("#nmap-target").value);
+  $("#nmap-auth-wrap").hidden = !pub;
+  $("#nmap-public-note").hidden = !pub;
+}
+$("#nmap-target").addEventListener("input", syncPublic);
+$("#nmap-myip").addEventListener("click", async () => {
+  const btn = $("#nmap-myip");
+  btn.disabled = true;
+  try {
+    $("#nmap-target").value = (await api("/api/public-ip")).ip;
+    syncPublic();
+  } catch (err) {
+    setStatus($("#nmap-status"), `Couldn't get your public IP: ${esc(err.message)}`, true);
+  }
+  btn.disabled = false;
+});
 
 $("#nmap-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -72,7 +108,12 @@ $("#nmap-form").addEventListener("submit", (e) => {
     profile: $("#nmap-profile").value,
     os_detect: $("#nmap-os").checked,
     scripts: $("#nmap-scripts").checked,
+    authorized: $("#nmap-auth").checked,
   });
+  if (looksPublic($("#nmap-target").value) && !$("#nmap-auth").checked) {
+    setStatus($("#nmap-status"), "This is a public target. Only scan systems you own or have permission to test, then tick the box to confirm.", true);
+    return;
+  }
   $("#nmap-start").hidden = true;
   $("#nmap-stop").hidden = false;
   $("#nmap-findings").innerHTML = $("#nmap-results").innerHTML = $("#nmap-command").textContent = "";
@@ -81,7 +122,7 @@ $("#nmap-form").addEventListener("submit", (e) => {
   setStatus(status, "Starting Nmap…");
   let failed = false;
   nmapRun = stream(`/api/nmap/scan?${params}`, (ev) => {
-    if (ev.type === "start") $("#nmap-command").textContent = `$ ${ev.command}`;
+    if (ev.type === "start") $("#nmap-command").textContent = `$ ${ev.command}${ev.resolved ? `   (${ev.resolved})` : ""}`;
     if (ev.type === "progress") { bar.style.width = `${ev.percent}%`; setStatus(status, `${esc(ev.task)}: ${ev.percent.toFixed(0)}% done`); }
     if (ev.type === "task") setStatus(status, esc(ev.message));
     if (ev.type === "open_port") {

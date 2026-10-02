@@ -91,7 +91,25 @@ def test_channel_report_prefers_quiet_channel():
     report = wifiscan.channel_report(nets)
     assert report["usage"]["2.4 GHz"] == {1: 2, 2: 1, 6: 1}
     assert report["recommendations"]["2.4 GHz"]["channel"] == 11
-    assert report["recommendations"]["5 GHz"]["channel"] == 40
+    # 36 and 44 are busy, and 40/48 share their 80 MHz block, so the pick is the next clean block.
+    assert report["recommendations"]["5 GHz"]["channel"] == 149
+
+
+def test_channel_report_6ghz_and_connected_advice():
+    nets = [wifiscan.make_network("Home", channel=5, band="6 GHz", signal_percent=90, in_use=True),
+            wifiscan.make_network("A", channel=5, band="6 GHz", signal_percent=80),
+            wifiscan.make_network("B", channel=21, band="6 GHz", signal_percent=70)]
+    assert nets[0]["band"] == "6 GHz" and nets[0]["frequency_mhz"] == 5975
+    report = wifiscan.channel_report(nets)
+    assert report["recommendations"]["6 GHz"]["channel"] == 37
+    conn = report["connected"]
+    assert conn["current"] == 5 and conn["channel"] == 37 and conn["change"] and conn["overlapping"] == 1
+
+
+def test_interference_model():
+    assert wifiscan.interference("2.4 GHz", 1, 1) == 1 and wifiscan.interference("2.4 GHz", 1, 6) == 0
+    assert wifiscan.interference("5 GHz", 36, 44) == 0.5 and wifiscan.interference("5 GHz", 36, 149) == 0
+    assert wifiscan.interference("6 GHz", 5, 13) == 0.5 and wifiscan.interference("6 GHz", 5, 21) == 0
 
 
 def test_parse_arp_tables():

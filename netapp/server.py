@@ -137,10 +137,11 @@ async def nmap_status():
 
 
 @app.get("/api/nmap/scan")
-async def nmap_scan(target: str, profile: str = "quick", os_detect: bool = False, scripts: bool = False):
+async def nmap_scan(target: str, profile: str = "quick", os_detect: bool = False, scripts: bool = False,
+                    authorized: bool = False):
     async def run():
         gateway = await netinfo.default_gateway()
-        async for ev in nmapscan.run_scan(target, profile, os_detect, scripts, gateway):
+        async for ev in nmapscan.run_scan(target, profile, os_detect, scripts, gateway, authorized):
             yield ev
     return sse(run())
 

@@ -15,6 +15,10 @@ def main() -> None:
                  "On macOS: `brew install python` or download it from python.org.")
     import uvicorn
 
+    from .system import raise_open_file_limit
+
+    raise_open_file_limit()  # macOS allows only 256 open sockets by default; scans need more
+
     parser = argparse.ArgumentParser(prog="netapp", description="Network analysis & diagnostic toolkit")
     parser.add_argument("--host", default="127.0.0.1", help="interface to listen on (default: localhost only)")
     parser.add_argument("--port", type=int, default=8765)

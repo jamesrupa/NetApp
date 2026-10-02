@@ -138,6 +138,7 @@ main { max-width: 1180px; width: 100%; margin: 0 auto; padding: 24px; min-width:
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .grid-2 .card { margin-top: 0; margin-bottom: 16px; }
+.chart-note { margin: 6px 0 0; min-height: 1.4em; }
 
 /* --- stat tiles ----------------------------------------------------------------- */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -212,6 +213,7 @@ td.empty { color: var(--text-muted); text-align: center; padding: 28px; }
 .chart { position: relative; width: 100%; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .axis-label.strong { fill: var(--text-primary); font-weight: 700; }
 .chart .axis-label { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
 .chart .series-1 { stroke: var(--series-1); fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart .series-2 { stroke: var(--series-2); fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
@@ -237,6 +239,9 @@ td.empty { color: var(--text-muted); text-align: center; padding: 28px; }
 .dial .track { stroke: var(--surface-2); }
 .dial .fill { transition: stroke-dasharray .35s ease-out, stroke .2s; stroke: var(--series-1); }
 .dial .fill.upload { stroke: var(--series-2); }
+.dial .fill.good { stroke: var(--good); }
+.dial .fill.warning { stroke: var(--warning); }
+.dial .fill.critical { stroke: var(--critical); }
 .dial .tick { stroke: var(--text-muted); stroke-width: 1.5; }
 .dial .tick-label { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
 .dial .needle { transition: transform .35s ease-out; transform-box: view-box; }
@@ -301,6 +306,9 @@ td.empty { color: var(--text-muted); text-align: center; padding: 28px; }
 #hc-results { margin-top: 16px; }
 .export-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .export .status { margin-bottom: 0; }
+.ip-link { font-weight: 700; color: var(--accent); text-decoration: none; }
+.ip-link:hover { text-decoration: underline; }
+.web-links { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .link { color: var(--accent); cursor: pointer; text-decoration: underline; background: none; border: 0; font: inherit; padding: 0; }
 
 /* --- shared bits for the newer tools ------------------------------------------------ */

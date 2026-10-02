@@ -16,6 +16,7 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
+from ..system import raise_open_file_limit
 from . import advisor, netinfo, netscan, speedtest, wifiscan
 
 MODES = {
@@ -67,7 +68,8 @@ async def _devices(report: dict) -> AsyncIterator[dict]:
 
 async def _ports(report: dict) -> AsyncIterator[dict]:
     hosts = report.get("network", {}).get("hosts", [])
-    sem = asyncio.Semaphore(4)  # 4 hosts at a time x 100 sockets each
+    # Up to 4 hosts at a time x ~100 sockets each, fewer if the OS allows few open files (macOS: 256).
+    sem = asyncio.Semaphore(max(1, min(4, (raise_open_file_limit() - 64) // 110)))
 
     async def one(host: dict) -> dict:
         async with sem:

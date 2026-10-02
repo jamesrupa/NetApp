@@ -7,13 +7,16 @@ verbose console output streams progress ("About 45% done") and live discoveries
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import os
 import re
+import socket
 import tempfile
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from ..system import IS_WINDOWS, find_tool, stream_cmd
 from . import advisor
@@ -65,25 +68,71 @@ def status() -> dict:
     }
 
 
-def validate_target(target: str) -> str:
-    """Only private IPv4 addresses or networks (at most a /22). Also rules out option injection."""
+MAX_PUBLIC_HOSTS = 256  # public targets: at most a /24
+_HOSTNAME = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?$")
+
+PERMISSION_NEEDED = ("{target} is a public address. Only scan systems you own or have written permission to test, "
+                     "then tick \"I own this or have permission\" and run the scan again.")
+
+
+@dataclass
+class Target:
+    value: str          # what nmap is given: an IP, a CIDR or a hostname
+    public: bool
+    single: bool
+    resolved: str | None = None
+
+
+def _is_local(addr: ipaddress.IPv4Address | ipaddress.IPv4Network) -> bool:
+    return addr.is_private or addr.is_link_local or addr.is_loopback
+
+
+def check_target(target: str, authorized: bool = False) -> Target:
+    """Validate an IPv4 address, CIDR range or hostname.
+
+    Private (LAN) targets: up to a /22. Public targets: up to a /24, and only with the user's
+    confirmation that they own them or have permission. The strict format checks also stop
+    anything that could be read as an nmap option.
+    """
     target = (target or "").strip()
     try:
         net = ipaddress.IPv4Network(target, strict=False)
-    except ValueError as exc:
-        raise ScanError("Enter an IPv4 address or network, e.g. 192.168.1.10 or 192.168.1.0/24.") from exc
-    if not (net.is_private or net.is_link_local):
-        raise ScanError("Only private (LAN) addresses can be scanned.")
-    if net.num_addresses > MAX_HOSTS + 2:
-        raise ScanError(f"{net} is too large; use a /22 or smaller.")
-    return str(net.network_address) if net.num_addresses == 1 else str(net)
+    except ValueError:
+        net = None
+    if net is not None:
+        public = not _is_local(net)
+        limit = MAX_PUBLIC_HOSTS if public else MAX_HOSTS + 2
+        if net.num_addresses > limit:
+            raise ScanError(f"{net} is too large; use a {'/24' if public else '/22'} or smaller.")
+        if public and not authorized:
+            raise ScanError(PERMISSION_NEEDED.format(target=net if net.num_addresses > 1 else net.network_address))
+        single = net.num_addresses == 1
+        return Target(str(net.network_address) if single else str(net), public, single)
+    if not _HOSTNAME.match(target):
+        raise ScanError("Enter an IPv4 address, a range like 192.168.1.0/24, or a hostname like example.com.")
+    try:
+        infos = socket.getaddrinfo(target, None, socket.AF_INET)
+    except socket.gaierror as exc:
+        raise ScanError(f"Couldn't resolve {target}: {exc.strerror or exc}") from exc
+    ip = ipaddress.IPv4Address(infos[0][4][0])
+    public = not _is_local(ip)
+    if public and not authorized:
+        raise ScanError(PERMISSION_NEEDED.format(target=f"{target} ({ip})"))
+    return Target(target, public, True, str(ip))
 
 
-def build_args(nmap: str, target: str, profile: str, os_detect: bool, scripts: bool, xml_path: str) -> list[str]:
+def validate_target(target: str, authorized: bool = False) -> str:
+    return check_target(target, authorized).value
+
+
+def build_args(nmap: str, target: str, profile: str, os_detect: bool, scripts: bool, xml_path: str,
+               skip_ping: bool = False) -> list[str]:
     if profile not in PROFILES:
         raise ScanError(f"Unknown profile: {profile}")
     args = [nmap, *PROFILES[profile]["args"]]
     if profile != "ping":
+        if skip_ping:
+            args.append("-Pn")  # internet hosts usually block ping; scan them anyway
         if os_detect:
             args.append("-O")
         if scripts:
@@ -160,17 +209,20 @@ def findings(result: dict, gateway: str | None = None) -> list[dict]:
 
 
 async def run_scan(
-    target: str, profile: str = "quick", os_detect: bool = False, scripts: bool = False, gateway: str | None = None
+    target: str, profile: str = "quick", os_detect: bool = False, scripts: bool = False, gateway: str | None = None,
+    authorized: bool = False,
 ) -> AsyncIterator[dict]:
     nmap = find_nmap()
     if not nmap:
         raise ScanError("Nmap is not installed. " + status()["install_help"])
-    target = validate_target(target)
+    t = await asyncio.to_thread(check_target, target, authorized)
+    target = t.value
     fd, xml_path = tempfile.mkstemp(suffix=".xml", prefix="netapp-nmap-")
     os.close(fd)
-    args = build_args(nmap, target, profile, os_detect, scripts, xml_path)
+    args = build_args(nmap, target, profile, os_detect, scripts, xml_path, skip_ping=t.public and t.single)
     started = time.perf_counter()
-    yield {"type": "start", "target": target, "profile": profile, "command": " ".join(["nmap", *args[1:-3], target])}
+    yield {"type": "start", "target": target, "profile": profile, "public": t.public, "resolved": t.resolved,
+           "command": " ".join(["nmap", *args[1:-3], target])}
     errors: list[str] = []
     try:
         async for kind, line in stream_cmd(args):

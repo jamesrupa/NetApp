@@ -2,6 +2,17 @@
 // Wi-Fi Monitor: live signal graph per access point, roaming events and a room-by-room survey.
 
 const mon = { samples: [], bssids: [], events: [], marks: [], run: null };
+
+// Live signal dial beside the graph: −90 to −30 dBm, coloured by signal quality.
+const signalDial = createDial($("#mon-dial"), { ticks: [-90, -80, -70, -60, -50, -40, -30] });
+function setSignalDial(s) {
+  if (!s) return signalDial.set({ text: "–", unit: "dBm", label: "Ready" });
+  if (!s.connected || s.signal_dbm == null) return signalDial.set({ text: "–", unit: "dBm", label: "Not connected", tone: "critical" });
+  const q = quality(s.signal_dbm);
+  signalDial.set({ value: s.signal_dbm, text: String(s.signal_dbm), unit: `dBm · ${s.band || ""} ch ${s.channel ?? "?"}`, label: q.label, tone: q.cls });
+}
+setSignalDial(null);
+chartRedrawers.push(() => { if (!$("#tab-monitor").hidden) signalChart(); });
 const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 /** Fixed color slot per access point, in the order first seen (never re-assigned). */
@@ -21,7 +32,7 @@ function locationAt(t) {
 
 function signalChart() {
   const container = $("#mon-chart");
-  const W = 760, H = 296, m = { t: 38, r: 92, b: 28, l: 44 };
+  const W = Math.max(320, container.clientWidth || 760), H = W < 520 ? 260 : 296, m = { t: 38, r: W < 520 ? 72 : 92, b: 28, l: 44 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const last = mon.samples.length ? mon.samples[mon.samples.length - 1].t : 0;
   const xMax = Math.max(60, Math.ceil(last / 30) * 30);
@@ -161,10 +172,11 @@ function renderAps(ev) {
 $("#mon-form").addEventListener("submit", (e) => {
   e.preventDefault();
   Object.assign(mon, { samples: [], bssids: [], events: [], marks: [], noBssidNote: false });
-  $("#mon-location").hidden = true;
+  $("#mon-loc-notice").hidden = true;
   $("#mon-events").innerHTML = `<li class="sub">Roams, disconnects and sticky-connection warnings appear here.</li>`;
   renderSurvey();
   signalChart();
+  setSignalDial(null);
   $("#mon-start").hidden = true;
   $("#mon-stop").hidden = false;
   $("#mon-mark").disabled = false;
@@ -176,13 +188,14 @@ $("#mon-form").addEventListener("submit", (e) => {
       ev.loc = locationAt(ev.t);
       mon.samples.push(ev);
       renderMonTiles(ev);
+      setSignalDial(ev);
       signalChart();
       renderSurvey();
       $("#mon-export").disabled = false;
       if (ev.connected && (ev.redacted || !ev.bssid) && !mon.noBssidNote) {
         mon.noBssidNote = true;
         if (ev.redacted) {
-          api("/api/macos/location").then((loc) => showLocationNotice($("#mon-location"), loc, () => {
+          api("/api/macos/location").then((loc) => showLocationNotice($("#mon-loc-notice"), loc, () => {
             mon.run?.stop();
             $("#mon-start").click();
           })).catch(() => {});

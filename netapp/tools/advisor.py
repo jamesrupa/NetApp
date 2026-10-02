@@ -7,7 +7,6 @@ what to change, so the report doubles as a learning aid.
 
 from __future__ import annotations
 
-from .wifiscan import CHANNELS_24
 
 SEVERITY_ORDER = {"critical": 0, "warning": 1, "info": 2, "good": 3}
 PENALTY = {"critical": 25, "warning": 10, "info": 0, "good": 0}
@@ -104,10 +103,6 @@ def classify_security(security: str | None) -> str:
     return "wpa"
 
 
-def overlapping_24(channel: int, other: int) -> bool:
-    return abs(channel - other) < 5
-
-
 def wifi_rules(wifi: dict | None) -> list[dict]:
     if wifi is None:
         return []
@@ -173,37 +168,57 @@ def wifi_rules(wifi: dict | None) -> list[dict]:
                            "A similarly named 5 GHz network (e.g. \"-5G\") is nearby, which is usually much faster.",
                            "Connect this device to the 5 GHz network when you are within range of the router."))
 
-    # Channel choice & congestion
-    recs = wifi.get("channels", {}).get("recommendations", {})
-    others = [n for n in nets if n is not cur and n["ssid"] != cur["ssid"] and n.get("channel")]
-    if band == "2.4 GHz" and ch:
-        best = recs.get("2.4 GHz", {}).get("channel")
-        if ch not in CHANNELS_24:
-            out.append(rec("warning", "Wi-Fi", f"Router is on overlapping 2.4 GHz channel {ch}",
-                           "Only channels 1, 6 and 11 don't overlap each other. Other channels pick up interference from both neighbours.",
-                           f"Set the router's 2.4 GHz channel to {best or '1, 6 or 11'} instead of Auto/{ch}."))
-        crowd = [n for n in others if n.get("band") == "2.4 GHz" and overlapping_24(ch, n["channel"])]
-        if len(crowd) >= 3 and ch in CHANNELS_24:
-            action = (f"Change the router's 2.4 GHz channel to {best}, which has the least overlap nearby."
-                      if best and best != ch else "Your channel is already the best of 1/6/11; prefer 5 GHz for heavy use.")
-            out.append(rec("warning", "Wi-Fi", f"Channel {ch} is crowded ({len(crowd)} other networks)",
-                           "Networks on overlapping channels take turns to transmit, which reduces everyone's speed.", action))
-    elif band == "5 GHz" and ch:
-        best = recs.get("5 GHz", {}).get("channel")
-        crowd = [n for n in others if n.get("band") == "5 GHz" and n["channel"] == ch]
-        if len(crowd) >= 2:
-            out.append(rec("warning", "Wi-Fi", f"5 GHz channel {ch} is shared with {len(crowd)} other networks",
-                           "Sharing a channel means sharing airtime.",
-                           f"Set the router's 5 GHz channel to {best}." if best and best != ch else
-                           "Try a different 5 GHz channel in the router settings."))
-        else:
-            out.append(rec("good", "Wi-Fi", f"5 GHz channel {ch} is uncongested", "Few or no neighbours share your channel."))
+    # Channel choice: should you change the channel your own network uses?
+    out += channel_rules(cur, nets)
 
     crowded_24 = [n for n in nets if n.get("band") == "2.4 GHz"]
     if len(crowded_24) > 15:
         out.append(rec("info", "Wi-Fi", f"Busy 2.4 GHz environment ({len(crowded_24)} networks)",
                        "Apartment-style congestion; no 2.4 GHz channel will be clean.",
                        "Use 5 GHz (or 6 GHz with Wi-Fi 6E) for anything that needs speed."))
+    return out
+
+
+def channel_rules(cur: dict, nets: list[dict]) -> list[dict]:
+    """Recommend keeping or changing the connected network's channel, with the exact setting to use."""
+    from .wifiscan import recommend_channel
+
+    band, ch = cur.get("band"), cur.get("channel")
+    if band not in ("2.4 GHz", "5 GHz", "6 GHz") or not ch:
+        return []
+    r = recommend_channel(band, nets, ch, cur.get("ssid") or None)
+    best, n_over = r["channel"], r["overlapping"]
+    neighbours = f"{n_over} neighbouring network{'s' if n_over != 1 else ''}"
+    how = (f"In your router's wireless settings, set the {band} channel to {best} instead of {ch}"
+           f"{' (or Auto)' if band != '6 GHz' else ''}. On a mesh system, change it in the mesh app; "
+           "devices reconnect automatically within a minute.")
+    out = []
+    if r["off_grid"]:
+        out.append(rec("warning", "Wi-Fi", f"Change Wi-Fi channel: {ch} → {best} (2.4 GHz)",
+                       f"Channel {ch} overlaps two of the standard channels (1, 6 and 11), so it picks up interference "
+                       f"from both sides. {neighbours.capitalize()} overlap it right now.", how))
+    elif r["change"]:
+        extra = {
+            "2.4 GHz": "Only channels 1, 6 and 11 don't overlap; {best} has the least traffic around you.",
+            "5 GHz": "{best} needs no radar checks (non-DFS) and has the least overlap with nearby networks.",
+            "6 GHz": "{best} is a preferred scanning channel (PSC), so devices find it quickly, and it's the quietest nearby.",
+        }[band].format(best=best)
+        out.append(rec("warning", "Wi-Fi", f"Change Wi-Fi channel: {ch} → {best} ({band})",
+                       f"Your network shares channel {ch} with {neighbours}, so they take turns using the airwaves. "
+                       + extra, how))
+    else:
+        detail = (f"No nearby networks overlap channel {ch}." if n_over == 0 else
+                  f"{neighbours.capitalize()} overlap it, but no other {band} channel is meaningfully quieter.")
+        out.append(rec("good", "Wi-Fi", f"Channel {ch} is a good choice ({band})", detail + " No change needed."))
+    if r.get("dfs") and not r["change"]:
+        out.append(rec("info", "Wi-Fi", f"Channel {ch} is a DFS (radar-shared) channel",
+                       "DFS channels are often quiet, but the router must leave them briefly if it detects radar, "
+                       "which drops Wi-Fi for about a minute.",
+                       f"If you notice short, random Wi-Fi dropouts, switch to {best}, which doesn't need radar checks."))
+    if band != "6 GHz" and any(n.get("band") == "6 GHz" and n.get("ssid") == cur.get("ssid") for n in nets):
+        out.append(rec("info", "Wi-Fi", "Your router also offers 6 GHz",
+                       "6 GHz (Wi-Fi 6E/7) has far more space and almost no interference, but shorter range.",
+                       "Devices that support it will use it when close to the router; no change needed."))
     return out
 
 

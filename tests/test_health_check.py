@@ -57,16 +57,35 @@ def test_wifi_rules_weak_open_crowded_24ghz_with_5ghz_available():
     assert any("Weak signal" in t for t in titles(recs, "warning"))
     assert any("not encrypted" in t for t in titles(recs, "critical"))
     assert any("5 GHz is available" in t for t in titles(recs, "warning"))
-    crowded = next(r for r in recs if "crowded" in r["title"])
-    assert "channel to 11" in crowded["action"]
+    change = next(r for r in recs if r["title"].startswith("Change Wi-Fi channel"))
+    assert change["title"] == "Change Wi-Fi channel: 6 → 11 (2.4 GHz)" and "set the 2.4 GHz channel to 11" in change["action"]
 
 
 def test_wifi_rules_off_grid_channel_and_good_5ghz():
     off = advisor.wifi_rules(wifi_report([net("Home", 3, -50, in_use=True)]))
-    assert any("overlapping 2.4 GHz channel 3" in t for t in titles(off, "warning"))
+    assert "Change Wi-Fi channel: 3 → 1 (2.4 GHz)" in titles(off, "warning")
 
     good = advisor.wifi_rules(wifi_report([net("Home", 149, -48, sec="WPA3", in_use=True), net("X", 36, -70)]))
     assert {r["severity"] for r in good} == {"good"}
+
+
+def test_channel_rules_5ghz_switch_and_stay():
+    busy = [net("Home", 36, -50, in_use=True), net("A", 36, -55), net("B", 40, -60), net("C", 44, -58)]
+    change = next(r for r in advisor.wifi_rules(wifi_report(busy)) if r["title"].startswith("Change Wi-Fi channel"))
+    assert change["title"] == "Change Wi-Fi channel: 36 → 149 (5 GHz)" and "non-DFS" in change["detail"]
+    # Your own mesh nodes on the same channel aren't "neighbours".
+    mesh = [net("Home", 149, -50, in_use=True), net("Home", 149, -60), net("A", 36, -70)]
+    assert "Channel 149 is a good choice (5 GHz)" in titles(advisor.wifi_rules(wifi_report(mesh)), "good")
+
+
+def test_channel_rules_dfs_and_6ghz():
+    dfs = advisor.wifi_rules(wifi_report([net("Home", 100, -50, in_use=True)]))
+    assert any("DFS" in t for t in titles(dfs, "info"))
+    six = [net("Home", 37, -50, in_use=True, band="6 GHz"), net("A", 37, -52, band="6 GHz"), net("B", 33, -55, band="6 GHz")]
+    change = next(r for r in advisor.wifi_rules(wifi_report(six)) if r["title"].startswith("Change Wi-Fi channel"))
+    assert change["title"] == "Change Wi-Fi channel: 37 → 5 (6 GHz)" and "PSC" in change["detail"]
+    also6 = advisor.wifi_rules(wifi_report([net("Home", 36, -50, in_use=True), net("Home", 37, -60, band="6 GHz")]))
+    assert "Your router also offers 6 GHz" in titles(also6, "info")
 
 
 def test_wifi_rules_unavailable_and_not_connected():

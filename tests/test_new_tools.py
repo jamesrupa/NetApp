@@ -325,3 +325,52 @@ def test_live_capture_on_loopback(tmp_path, monkeypatch):
     done = events[-1]
     assert done["type"] == "done" and done["packets"] >= 5
     assert (tmp_path / "captures" / done["pcap"]).stat().st_size > 0
+
+
+# --- Nmap: public targets & hostnames ------------------------------------------------------
+
+def test_public_targets_need_permission_and_size_limit():
+    with pytest.raises(ScanError, match="public address"):
+        nmapscan.check_target("8.8.8.8")
+    t = nmapscan.check_target("8.8.8.8", authorized=True)
+    assert t.public and t.single and t.value == "8.8.8.8"
+    assert nmapscan.check_target("203.0.113.0/24", authorized=True).value == "203.0.113.0/24"
+    with pytest.raises(ScanError, match="/24 or smaller"):
+        nmapscan.check_target("8.8.0.0/16", authorized=True)
+    lan = nmapscan.check_target("192.168.1.0/24")
+    assert not lan.public and lan.value == "192.168.1.0/24"
+
+
+def test_hostname_targets(monkeypatch):
+    import socket as _socket
+
+    def fake_getaddrinfo(host, *_a, **_k):
+        ips = {"example.com": "93.184.216.34", "printer.lan": "192.168.1.50"}
+        if host not in ips:
+            raise _socket.gaierror(8, "nodename nor servname provided")
+        return [(_socket.AF_INET, 1, 6, "", (ips[host], 0))]
+    monkeypatch.setattr(nmapscan.socket, "getaddrinfo", fake_getaddrinfo)
+    with pytest.raises(ScanError, match=r"example\.com \(93\.184\.216\.34\)"):
+        nmapscan.check_target("example.com")
+    t = nmapscan.check_target("example.com", authorized=True)
+    assert t.public and t.resolved == "93.184.216.34" and t.value == "example.com"
+    assert not nmapscan.check_target("printer.lan").public
+    with pytest.raises(ScanError, match="Couldn't resolve"):
+        nmapscan.check_target("nope.invalid")
+    for bad in ["-sV", "a..b", "host name", "x" * 300]:
+        with pytest.raises(ScanError):
+            nmapscan.check_target(bad, authorized=True)
+
+
+def test_public_single_host_skips_ping():
+    args = nmapscan.build_args("nmap", "8.8.8.8", "quick", False, False, "/tmp/o.xml", skip_ping=True)
+    assert "-Pn" in args and args[-1] == "8.8.8.8"
+    assert "-Pn" not in nmapscan.build_args("nmap", "8.8.8.8", "ping", False, False, "/tmp/o.xml", skip_ping=True)
+
+
+def test_safe_concurrency_respects_low_file_limits(monkeypatch):
+    from netapp import system
+    monkeypatch.setattr(system, "raise_open_file_limit", lambda target=4096: 256)  # macOS default
+    assert system.safe_concurrency(11, 64) == 16  # (256 - 64) // 12
+    monkeypatch.setattr(system, "raise_open_file_limit", lambda target=4096: 4096)
+    assert system.safe_concurrency(11, 64) == 64
