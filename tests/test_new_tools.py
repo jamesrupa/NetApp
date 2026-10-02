@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from pathlib import Path
 
 import httpx
@@ -286,9 +287,18 @@ def test_tshark_interface_parsing():
 def test_capture_rejects_option_injection():
     async def run():
         return [ev async for ev in traffic.capture("-w/etc/passwd", 5)]
+
     if traffic.find_tshark():
         with pytest.raises(RuntimeError):
             asyncio.run(run())
+
+
+@pytest.mark.skipif(not traffic.find_tshark(), reason="tshark not installed")
+def test_capture_reports_tshark_errors():
+    async def run():
+        return [ev async for ev in traffic.capture("no-such-interface0", 5)]
+    events = asyncio.run(run())
+    assert events[-1]["type"] == "error" and events[-1]["message"]
 
 
 @pytest.mark.skipif(not traffic.find_tshark(), reason="tshark not installed")
@@ -305,7 +315,8 @@ def test_live_capture_on_loopback(tmp_path, monkeypatch):
                 except OSError:
                     pass
         task = asyncio.create_task(chatter())
-        events = [ev async for ev in traffic.capture("lo", 5, "tcp port 9", save=True)]
+        loopback = "lo0" if sys.platform == "darwin" else "lo"
+        events = [ev async for ev in traffic.capture(loopback, 5, "tcp port 9", save=True)]
         await task
         return events
     events = asyncio.run(run())

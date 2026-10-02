@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import threading
 import webbrowser
 
-import uvicorn
-
 
 def main() -> None:
+    if sys.version_info < (3, 10):
+        sys.exit(f"NetApp needs Python 3.10 or newer (this is {sys.version.split()[0]}). "
+                 "On macOS: `brew install python` or download it from python.org.")
+    import uvicorn
+
     parser = argparse.ArgumentParser(prog="netapp", description="Network analysis & diagnostic toolkit")
     parser.add_argument("--host", default="127.0.0.1", help="interface to listen on (default: localhost only)")
     parser.add_argument("--port", type=int, default=8765)

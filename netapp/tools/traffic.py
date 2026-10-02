@@ -32,6 +32,7 @@ FIELDS = [
 ]
 
 MAX_DURATION = 600
+BENIGN_STDERR = re.compile(r"^(Capturing on|Running as user|\d+ packets? (captured|dropped)|Packets? (captured|dropped))", re.I)
 
 INSTALL_HELP = {
     "Windows": "Install Wireshark from https://www.wireshark.org/download.html and keep the "
@@ -380,12 +381,12 @@ async def capture(
             if fields:
                 analyzer.add(fields)
         elif kind == "err":
-            low = line.lower()
-            if "permission" in low or "don't have" in low or "access denied" in low or "error" in low or "invalid" in low:
+            # tshark also uses stderr for status chatter; keep everything else for error reporting.
+            if line.strip() and not BENIGN_STDERR.search(line):
                 errors.append(line.strip())
         elif kind == "exit":
-            if line not in (0, None) and errors:
-                msg = " ".join(errors)
+            if line not in (0, None):
+                msg = " ".join(errors[-5:]) or f"tshark exited with code {line}."
                 if "permission" in msg.lower() or "don't have" in msg.lower():
                     msg += " " + PERMISSION_HELP.get(platform.system(), "")
                 yield {"type": "error", "message": msg}
