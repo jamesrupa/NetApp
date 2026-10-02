@@ -66,6 +66,7 @@ body {
 h1 { font-size: 22px; margin: 0; }
 h2 { font-size: 15px; margin: 24px 0 10px; }
 .muted { color: var(--text-secondary); margin: 2px 0 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 code, .mono { font-family: var(--mono); font-size: 13px; }
 
 /* --- top bar ------------------------------------------------------------------ */
@@ -134,6 +135,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 24px; }
   background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
 }
 .btn:hover { background: var(--surface-2); }
+a.btn { text-decoration: none; display: inline-block; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .55; cursor: progress; }
@@ -198,6 +200,59 @@ td.empty { color: var(--text-muted); text-align: center; padding: 28px; }
   font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); white-space: nowrap;
 }
 .tooltip b { font-variant-numeric: tabular-nums; }
+
+/* --- health check ------------------------------------------------------------- */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.mode-card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+}
+.mode-card h2 { margin: 0; font-size: 17px; }
+.mode-card p { margin: 0; flex: 1; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.steps li:last-child { border-bottom: 0; }
+.steps .icon { font-weight: 700; text-align: center; color: var(--text-muted); }
+.steps .running .icon { color: var(--accent); animation: pulse 1s infinite alternate; }
+.steps .done .icon { color: var(--good); }
+.steps .error .icon { color: var(--critical); }
+.steps .label { font-weight: 600; }
+.steps .detail { grid-column: 2; color: var(--text-secondary); font-size: 13px; }
+@keyframes pulse { from { opacity: 1; } to { opacity: .3; } }
+
+.score-ring { display: flex; align-items: center; gap: 14px; }
+.score-ring svg { flex: none; }
+.score-ring .track { stroke: var(--surface-2); }
+.score-ring .value { stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.filters button {
+  font: inherit; font-size: 12px; cursor: pointer; padding: 4px 12px; border-radius: 99px;
+  background: var(--surface-1); color: var(--text-secondary); border: 1px solid var(--border);
+}
+.filters button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+
+.rec {
+  background: var(--surface-1); border: 1px solid var(--border); border-left: 4px solid var(--text-muted);
+  border-radius: var(--radius); padding: 12px 16px; margin-bottom: 10px;
+}
+.rec.critical { border-left-color: var(--critical); }
+.rec.warning { border-left-color: var(--warning); }
+.rec.info { border-left-color: var(--accent); }
+.rec.good { border-left-color: var(--good); }
+.rec .sev { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.rec.critical .sev { color: var(--critical); }
+.rec.warning .sev { color: var(--warning); }
+.rec.info .sev { color: var(--accent); }
+.rec.good .sev { color: var(--good); }
+.rec .cat { color: var(--text-muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.rec h3 { margin: 2px 0 4px; font-size: 15px; }
+.rec p { margin: 0 0 6px; color: var(--text-secondary); }
+.rec .action { margin: 8px 0 0; padding: 8px 12px; background: var(--surface-2); border-radius: 8px; color: var(--text-primary); }
+#hc-results { margin-top: 16px; }
+.export-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.export .status { margin-bottom: 0; }
+.link { color: var(--accent); cursor: pointer; text-decoration: underline; background: none; border: 0; font: inherit; padding: 0; }
 
 @media (max-width: 640px) {
   .topbar { padding: 0 16px; gap: 12px; }

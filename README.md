@@ -7,6 +7,7 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 
 | Tool | What it does |
 |---|---|
+| **Health Check** | One-click **Quick scan** (speed test) or **Full scan** (speed test, Wi-Fi signal and channel analysis, device discovery and an open-port security check). Ends with a health score and a prioritized list of recommended changes. Results export as HTML/JSON/CSV. |
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
 | **Speed Test** | Latency (median ping) and jitter, then multi-stream download and upload throughput with a live chart. Uses Cloudflare's speed-test endpoints. |
 | **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs) and response time. Can also run a common-ports scan on each device. |
@@ -38,6 +39,30 @@ You can also run `pip install -e .` to get a `netapp` command.
 
 None of the tools need admin/root rights.
 
+## Health Check: quick and full scans
+
+| | Quick scan | Full scan |
+|---|---|---|
+| Speed test (download, upload, ping, jitter) | ✔ | ✔ |
+| Wi-Fi signal, security, band and channel congestion | | ✔ |
+| Device discovery on your LAN | | ✔ |
+| Open-port security check of every device | | ✔ |
+| Typical time | ~25 s | 1–3 min |
+
+When a scan finishes you get:
+
+- **A health score (0–100)**: each critical issue costs 25 points and each warning 10.
+  Any critical issue caps the grade at "Fair".
+- **Recommendations**, sorted Critical → Warning → Info → Looks good. Each one says what was found, why it
+  matters, and the exact change to make. Examples: switching the router to a less crowded channel, moving off
+  2.4 GHz, upgrading WPA/TKIP or open Wi-Fi, disabling Telnet/FTP/RDP/VNC on devices, enabling HTTPS for the
+  router admin page, and reviewing UPnP.
+- **Exports**: an HTML report (prints neatly to PDF), JSON, and CSVs of recommendations, devices and Wi-Fi networks.
+  **Full scans are saved automatically** to `~/NetApp-Reports/`. Change the folder with `--reports-dir`.
+
+The rules live in `netapp/tools/advisor.py`. Each rule is a small, plain function, so it's easy to tune the
+thresholds or add new checks.
+
 ## How it works
 
 ```
@@ -50,6 +75,9 @@ netapp/
     speedtest.py     # latency/jitter, download, upload
     netscan.py       # host discovery, ARP, reverse DNS, port scan
     wifiscan.py      # per-OS Wi-Fi parsers + channel analysis
+    diagnose.py      # quick/full scan orchestration
+    advisor.py       # rules that turn results into recommendations + score
+    report.py        # HTML / JSON / CSV export and auto-save
   static/            # index.html, styles.css, app.js (no build step)
 tests/               # parser tests with sample OS output, speed-test & API tests
 ```
@@ -86,7 +114,8 @@ pytest
 - DNS lookup and DNS server benchmark
 - MAC vendor lookup (IEEE OUI database)
 - Continuous Wi-Fi signal monitor (for walking around to find dead zones)
-- Speed-test history saved to a local SQLite file
+- Scan history with trends over time (compare reports)
+- Scheduled scans
 - Subnet / CIDR calculator
 - Service banner grabbing and mDNS/SSDP device discovery
 - Packaging as a desktop app (e.g. pywebview or PyInstaller)

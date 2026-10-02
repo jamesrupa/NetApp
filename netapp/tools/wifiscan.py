@@ -119,7 +119,7 @@ def parse_nmcli(text: str) -> list[dict]:
             signal_percent=int(signal) if signal.isdigit() else None,
             channel=int(chan) if chan.isdigit() else None,
             freq_mhz=int(freq_m.group()) if freq_m else None,
-            security=security.strip() or None,
+            security=None if security.strip() in ("", "--") else security.strip(),
             in_use=in_use.strip() == "*",
             rate=rate or None,
         ))

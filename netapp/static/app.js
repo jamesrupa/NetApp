@@ -225,35 +225,48 @@ function drawSpeed() {
 }
 drawSpeed();
 
-$("#speed-start").addEventListener("click", () => {
-  const btn = $("#speed-start"), status = $("#speed-status");
-  btn.disabled = true;
+function resetSpeed() {
   speed.down = []; speed.up = [];
   ["#sp-ping", "#sp-jitter", "#sp-down", "#sp-up"].forEach((s) => { $(s).textContent = "–"; });
   drawSpeed();
-  const labels = { latency: "Measuring latency…", download: "Testing download…", upload: "Testing upload…" };
+}
+
+const SPEED_LABELS = { latency: "Measuring latency…", download: "Testing download…", upload: "Testing upload…" };
+
+/** Apply one speed-test event to the Speed Test tab. Returns a short status line (or null). */
+function applySpeedEvent(ev) {
+  if (ev.type === "error") return null;
+  if (ev.phase === "latency") {
+    if (ev.type === "sample") $("#sp-ping").textContent = ev.ms.toFixed(0);
+    if (ev.type === "result") {
+      $("#sp-ping").textContent = ev.latency_ms.toFixed(0);
+      $("#sp-jitter").textContent = ev.jitter_ms.toFixed(1);
+    }
+  }
+  if (ev.phase === "download" || ev.phase === "upload") {
+    const el = $(ev.phase === "download" ? "#sp-down" : "#sp-up");
+    if (ev.type === "sample") {
+      speed[ev.phase === "download" ? "down" : "up"].push({ x: ev.t, y: ev.mbps });
+      el.textContent = ev.mbps.toFixed(1);
+      drawSpeed();
+      return `${SPEED_LABELS[ev.phase]} ${ev.mbps.toFixed(1)} Mbps`;
+    }
+    if (ev.type === "result") el.textContent = ev.mbps.toFixed(1);
+  }
+  if (ev.type === "start") return SPEED_LABELS[ev.phase] || null;
+  if (ev.phase === "done") return `Download ${ev.download_mbps} Mbps · Upload ${ev.upload_mbps} Mbps · Ping ${ev.latency_ms} ms`;
+  return null;
+}
+
+$("#speed-start").addEventListener("click", () => {
+  const btn = $("#speed-start"), status = $("#speed-status");
+  btn.disabled = true;
+  resetSpeed();
   let failed = false;
   stream(`/api/speedtest?duration=${SPEED_DURATION}`, (ev) => {
     if (ev.type === "error") { failed = true; setStatus(status, `Speed test failed: ${esc(ev.message)}`, true); return; }
-    if (ev.type === "start") setStatus(status, labels[ev.phase] || "");
-    if (ev.phase === "latency") {
-      if (ev.type === "sample") $("#sp-ping").textContent = ev.ms.toFixed(0);
-      if (ev.type === "result") {
-        $("#sp-ping").textContent = ev.latency_ms.toFixed(0);
-        $("#sp-jitter").textContent = ev.jitter_ms.toFixed(1);
-      }
-    }
-    if (ev.phase === "download" || ev.phase === "upload") {
-      const el = $(ev.phase === "download" ? "#sp-down" : "#sp-up");
-      if (ev.type === "sample") {
-        speed[ev.phase === "download" ? "down" : "up"].push({ x: ev.t, y: ev.mbps });
-        el.textContent = ev.mbps.toFixed(1);
-        drawSpeed();
-      } else if (ev.type === "result") {
-        el.textContent = ev.mbps.toFixed(1);
-      }
-    }
-    if (ev.phase === "done") setStatus(status, `Done. Download ${ev.download_mbps} Mbps · Upload ${ev.upload_mbps} Mbps · Ping ${ev.latency_ms} ms.`);
+    const line = applySpeedEvent(ev);
+    if (line) setStatus(status, ev.phase === "done" ? `Done. ${line}.` : line);
   }, (err) => {
     btn.disabled = false;
     if (err && !failed) setStatus(status, esc(err.message), true);
@@ -408,7 +421,144 @@ $("#wifi-start").addEventListener("click", async () => {
   btn.disabled = false;
 });
 
+// --- Health check -----------------------------------------------------------------------
+
+const SEV = {
+  critical: { icon: "✖", label: "Critical" },
+  warning: { icon: "▲", label: "Warning" },
+  info: { icon: "ℹ", label: "Info" },
+  good: { icon: "✔", label: "Looks good" },
+};
+const STEP_ICON = { pending: "○", running: "●", done: "✔", error: "✖" };
+const DETAIL_TAB = { speed: ["speed", "Speed Test"], wifi: ["wifi", "Wi-Fi Scanner"], devices: ["scan", "Network Scanner"] };
+let hcReport = null;
+let hcFilter = "all";
+
+function renderSteps(steps) {
+  $("#hc-steps").innerHTML = steps.map((st) => `
+    <li class="${st.status}" data-step="${st.id}">
+      <span class="icon" aria-hidden="true">${STEP_ICON[st.status]}</span>
+      <span class="label">${esc(st.label)} <span class="sr-only">(${st.status})</span></span>
+      <span class="detail">${st.detail ? esc(st.detail) : ""}</span>
+    </li>`).join("");
+}
+
+function scoreTile(sc) {
+  const r = 30, c = 2 * Math.PI * r;
+  const tone = sc.value >= 75 ? "good" : sc.value >= 50 ? "warning" : "critical";
+  return `<div class="tile score-ring">
+    <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
+      <circle class="track" cx="38" cy="38" r="${r}" fill="none" stroke-width="8"/>
+      <circle class="value" cx="38" cy="38" r="${r}" fill="none" stroke-width="8"
+        style="stroke: var(--${tone})" stroke-dasharray="${(c * sc.value) / 100} ${c}"/>
+    </svg>
+    <div><div class="tile-label">Health score</div>
+      <div class="tile-value">${sc.value}<small>/ 100</small></div>
+      <div class="tile-note t-${tone}">${esc(sc.grade)}</div></div>
+  </div>`;
+}
+
+function renderRecs() {
+  const recs = hcReport.recommendations.filter((r) => hcFilter === "all" || r.severity === hcFilter);
+  $("#hc-recs").innerHTML = recs.map((r) => `
+    <article class="rec ${r.severity}">
+      <div class="sev">${SEV[r.severity].icon} ${SEV[r.severity].label} <span class="cat">· ${esc(r.category)}</span></div>
+      <h3>${esc(r.title)}</h3>
+      <p>${esc(r.detail)}</p>
+      ${r.action ? `<p class="action"><b>Recommended change:</b> ${esc(r.action)}</p>` : ""}
+    </article>`).join("") || `<p class="muted">Nothing in this category.</p>`;
+  document.querySelectorAll("#hc-filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === hcFilter)));
+}
+
+function renderReport(rep) {
+  hcReport = rep;
+  hcFilter = "all";
+  const sc = rep.score, n = sc.counts;
+  $("#hc-score").innerHTML = scoreTile(sc) + [
+    ["critical", "Critical issues"], ["warning", "Warnings"], ["good", "Looks good"],
+  ].map(([k, label]) => `<div class="tile"><div class="tile-label">${SEV[k].icon} ${label}</div><div class="tile-value">${n[k]}</div></div>`).join("");
+
+  $("#hc-filters").innerHTML = [["all", `All (${rep.recommendations.length})`],
+    ...Object.keys(SEV).filter((k) => n[k]).map((k) => [k, `${SEV[k].label} (${n[k]})`])]
+    .map(([k, label]) => `<button type="button" data-filter="${k}">${label}</button>`).join("");
+  renderRecs();
+
+  const exports = rep.mode === "full"
+    ? [["html", "HTML report"], ["json", "JSON"], ["recommendations.csv", "Recommendations CSV"], ["devices.csv", "Devices CSV"], ["wifi.csv", "Wi-Fi CSV"]]
+    : [["html", "HTML report"], ["json", "JSON"], ["recommendations.csv", "Recommendations CSV"]];
+  $("#hc-export").innerHTML = exports.map(([fmt, label]) =>
+    `<a class="btn small" href="/api/reports/${encodeURIComponent(rep.id)}/export?format=${encodeURIComponent(fmt)}" download>${label}</a>`).join("");
+  const saved = $("#hc-saved");
+  if (rep.saved_files) setStatus(saved, `Saved automatically to:\n${rep.saved_files.map(esc).join("\n")}`);
+  else if (rep.save_error) setStatus(saved, esc(rep.save_error), true);
+  else setStatus(saved, "Download the report in the format you need. The HTML report prints neatly to PDF.");
+
+  const tabs = Object.keys(DETAIL_TAB).filter((k) => k in rep || (k === "devices" && rep.network));
+  $("#hc-details").innerHTML = tabs.length
+    ? `Full details: ${tabs.map((k) => `<button class="link" data-goto="${DETAIL_TAB[k][0]}">${DETAIL_TAB[k][1]}</button>`).join(" · ")}`
+    : "";
+  $("#hc-results").hidden = false;
+}
+
+$("#hc-filters").addEventListener("click", (e) => {
+  if (!e.target.dataset.filter) return;
+  hcFilter = e.target.dataset.filter;
+  renderRecs();
+});
+$("#hc-details").addEventListener("click", (e) => { if (e.target.dataset.goto) showTab(e.target.dataset.goto); });
+
+function startDiagnosis(mode) {
+  const buttons = document.querySelectorAll("[data-diagnose]");
+  buttons.forEach((b) => { b.disabled = true; });
+  $("#hc-results").hidden = true;
+  $("#hc-progress").hidden = false;
+  $("#hc-progress-title").textContent = mode === "full" ? "Running full scan…" : "Running quick scan…";
+  let steps = [];
+  const step = (id) => steps.find((st) => st.id === id);
+  const update = (id, patch) => { Object.assign(step(id), patch); renderSteps(steps); };
+
+  resetSpeed();
+  if (mode === "full") { hosts.clear(); renderHosts(); }
+
+  stream(`/api/diagnose?mode=${mode}`, (ev) => {
+    if (ev.type === "plan") {
+      steps = ev.steps.map((st) => ({ ...st, status: "pending", detail: "" }));
+      renderSteps(steps);
+    } else if (ev.type === "step") {
+      update(ev.step, { status: ev.status, ...(ev.status === "running" ? { detail: "Starting…" } : {}) });
+    } else if (ev.type === "step_event") {
+      const e = ev.event;
+      if (e.type === "error") { update(ev.step, { detail: e.message }); return; }
+      if (ev.step === "speed") {
+        const line = applySpeedEvent(e);
+        if (line) update("speed", { detail: line });
+      } else if (ev.step === "wifi") {
+        if (e.wifi.error) update("wifi", { detail: e.wifi.error.split("\n")[0] });
+        else { renderWifi(e.wifi); update("wifi", { detail: `${e.wifi.networks.length} access points found` }); }
+      } else if (ev.step === "devices") {
+        if (e.type === "start") update("devices", { detail: `Scanning ${e.network}…` });
+        if (e.type === "host") { hosts.set(e.host.ip, { ...hosts.get(e.host.ip), ...e.host }); renderHosts(); }
+        if (e.type === "progress") update("devices", { detail: `${e.done} / ${e.total} addresses checked · ${hosts.size} devices found` });
+        if (e.type === "done") update("devices", { detail: `${e.hosts_found} devices found on ${e.network}` });
+      } else if (ev.step === "ports") {
+        const h = hosts.get(e.ip);
+        if (h) { h.ports = e.ports; renderHosts(); }
+        update("ports", { detail: `${e.done} / ${e.total} devices checked` });
+      }
+    } else if (ev.type === "report") {
+      $("#hc-progress-title").textContent = `${mode === "full" ? "Full" : "Quick"} scan finished in ${ev.report.duration_s}s`;
+      renderReport(ev.report);
+    } else if (ev.type === "error") {
+      $("#hc-progress-title").textContent = `Scan failed: ${ev.message}`;
+    }
+  }, (err) => {
+    buttons.forEach((b) => { b.disabled = false; });
+    if (err) $("#hc-progress-title").textContent = err.message;
+  });
+}
+document.querySelectorAll("[data-diagnose]").forEach((b) => b.addEventListener("click", () => startDiagnosis(b.dataset.diagnose)));
+
 // --- start ----------------------------------------------------------------------------
 
 const initialTab = location.hash.slice(1);
-showTab(document.getElementById(`tab-${initialTab}`) ? initialTab : "overview");
+showTab(document.getElementById(`tab-${initialTab}`) ? initialTab : "health");

@@ -12,11 +12,11 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import netinfo, netscan, speedtest, wifiscan
+from .tools import diagnose, netinfo, netscan, report, speedtest, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -91,6 +91,46 @@ async def wifi():
         return await wifiscan.scan_wifi()
     except wifiscan.WifiError as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@app.get("/api/diagnose")
+async def run_diagnosis(mode: str = Query("quick", pattern="^(quick|full)$")):
+    return sse(_diagnose_and_store(mode))
+
+
+# Recent reports, kept in memory so the UI can download them in any format.
+REPORTS: dict[str, dict] = {}
+MAX_REPORTS = 20
+
+
+async def _diagnose_and_store(mode: str) -> AsyncIterator[dict]:
+    async for ev in diagnose.run_diagnosis(mode):
+        if ev["type"] == "report":
+            rep = ev["report"]
+            REPORTS[rep["id"]] = rep
+            while len(REPORTS) > MAX_REPORTS:
+                REPORTS.pop(next(iter(REPORTS)))
+            if mode == "full":  # full scans are exported to the reports folder automatically
+                try:
+                    rep["saved_files"] = report.save(rep)
+                except OSError as exc:
+                    rep["save_error"] = f"Could not save the report: {exc}"
+        yield ev
+
+
+@app.get("/api/reports/{report_id}/export")
+async def export_report(report_id: str, format: str = Query("html")):
+    rep = REPORTS.get(report_id)
+    if rep is None:
+        raise HTTPException(404, "Report not found. Reports are kept in memory until the app restarts.")
+    if format not in report.EXPORTS:
+        raise HTTPException(400, f"Format must be one of: {', '.join(report.EXPORTS)}")
+    media_type, ext = report.EXPORTS[format]
+    return Response(
+        report.render(rep, format),
+        media_type=f"{media_type}; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename(rep, ext)}"'},
+    )
 
 
 # --- UI ---------------------------------------------------------------------------

@@ -10,7 +10,8 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp</div>
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="health" aria-selected="true">Health Check</button>
+      <button role="tab" data-tab="overview">Overview</button>
       <button role="tab" data-tab="speed">Speed Test</button>
       <button role="tab" data-tab="scan">Network Scanner</button>
       <button role="tab" data-tab="wifi">Wi-Fi Scanner</button>
@@ -19,8 +20,51 @@
   </header>
 
   <main>
+    <!-- Health check -------------------------------------------------------------->
+    <section id="tab-health" class="panel" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h1>Health Check</h1>
+          <p class="muted">Run a scan, then get a list of changes that will improve your network.</p>
+        </div>
+      </div>
+      <div class="modes">
+        <div class="mode-card">
+          <h2>Quick scan</h2>
+          <p class="muted">Internet speed test: download, upload, ping and jitter. About 25 seconds.</p>
+          <button class="btn primary" data-diagnose="quick">Run quick scan</button>
+        </div>
+        <div class="mode-card">
+          <h2>Full scan</h2>
+          <p class="muted">Speed test, Wi-Fi signal &amp; channel analysis, device discovery and a security check of open ports.
+            Takes 1–3 minutes. The report is saved automatically.</p>
+          <button class="btn primary" data-diagnose="full">Run full scan</button>
+        </div>
+      </div>
+
+      <div class="card" id="hc-progress" hidden>
+        <div class="card-head"><h2 id="hc-progress-title">Scanning…</h2></div>
+        <ol class="steps" id="hc-steps"></ol>
+      </div>
+
+      <div id="hc-results" hidden>
+        <div class="tiles" id="hc-score"></div>
+        <div class="card export">
+          <div class="card-head">
+            <h2>Export results</h2>
+            <div class="export-buttons" id="hc-export"></div>
+          </div>
+          <p class="status" id="hc-saved"></p>
+        </div>
+        <h2>Recommendations</h2>
+        <div class="filters" id="hc-filters" role="group" aria-label="Filter recommendations"></div>
+        <div id="hc-recs"></div>
+        <p class="muted" id="hc-details"></p>
+      </div>
+    </section>
+
     <!-- Overview ------------------------------------------------------------------>
-    <section id="tab-overview" class="panel" role="tabpanel">
+    <section id="tab-overview" class="panel" role="tabpanel" hidden>
       <div class="panel-head">
         <div>
           <h1>Overview</h1>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import webbrowser
 
@@ -14,7 +15,10 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", help="interface to listen on (default: localhost only)")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser window")
+    parser.add_argument("--reports-dir", help="where full-scan reports are saved (default: ~/NetApp-Reports)")
     args = parser.parse_args()
+    if args.reports_dir:
+        os.environ["NETAPP_REPORTS_DIR"] = os.path.abspath(args.reports_dir)
 
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     print(f"NetApp running at {url}  (Ctrl+C to stop)")
