@@ -264,8 +264,37 @@ def same_network_aps(nets: list[dict], c: dict | None) -> list[dict]:
 
 # --- the monitor loop ---------------------------------------------------------------
 
+class _MacHelperSampler:
+    """On macOS, one long-running NetApp Wi-Fi Helper reports the connection (with names, given permission)."""
+
+    def __init__(self, stream) -> None:
+        self.stream = stream
+
+    async def get(self) -> dict | None:
+        from .macos_helper import to_connection
+        line = self.stream.read() or {}
+        return to_connection(line.get("current"))
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+async def _make_sampler(interval: float):
+    if IS_MAC:
+        from . import macos_helper
+        try:
+            stream = await asyncio.to_thread(macos_helper.MonitorStream, interval)
+            if await macos_helper.wait_for_first(stream):
+                return _MacHelperSampler(stream)
+            stream.close()
+        except macos_helper.HelperUnavailable:
+            pass
+    return None
+
+
 async def monitor(interval: float = 1.0, scan_every: float = 30.0, max_seconds: float = MAX_SECONDS) -> AsyncIterator[dict]:
     tracker = RoamTracker()
+    sampler = await _make_sampler(interval)
     start = time.perf_counter()
     next_scan = start + 2
     scan_task: asyncio.Task | None = None
@@ -275,7 +304,7 @@ async def monitor(interval: float = 1.0, scan_every: float = 30.0, max_seconds: 
         while (now := time.perf_counter()) - start < max_seconds:
             t = round(now - start, 2)
             try:
-                latest = await current_connection()
+                latest = await sampler.get() if sampler else await current_connection()
             except wifiscan.WifiError as exc:
                 yield {"type": "error", "message": str(exc)}
                 return
@@ -300,3 +329,5 @@ async def monitor(interval: float = 1.0, scan_every: float = 30.0, max_seconds: 
     finally:
         if scan_task:
             scan_task.cancel()
+        if sampler:
+            sampler.close()

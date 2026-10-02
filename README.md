@@ -51,8 +51,15 @@ None of the built-in tools need admin/root rights. The two optional external too
 
 NetApp detects both automatically and shows install instructions in the app if they're missing.
 
-**Wi-Fi Monitor** uses `iw` or `nmcli` on Linux and `netsh` on Windows. On macOS it uses CoreWLAN (installed
-automatically through `requirements.txt`), and Location Services permission is needed to see access-point BSSIDs.
+**Wi-Fi Monitor** uses `iw` or `nmcli` on Linux and `netsh` on Windows.
+
+**macOS Wi-Fi names:** since macOS 14, Wi-Fi network names and access-point IDs are only shown to apps with
+Location Services permission, and macOS won't keep that permission for Homebrew's Python. So on first use NetApp
+builds a tiny helper app, **NetApp Wi-Fi Helper** (Swift source in `netapp/macos_helper/`). It's compiled with
+Apple's command-line tools (`xcode-select --install` if they're missing), ad-hoc signed, and stored in
+`~/Library/Application Support/NetApp/`. Press **Allow location access** in the Wi-Fi Scanner, choose Allow when macOS
+asks, and the names appear. You can review this any time under System Settings › Privacy & Security ›
+Location Services › NetApp Wi-Fi Helper.
 
 **What the Traffic Analyzer can see:** on Wi-Fi and switched networks a computer sees its own traffic plus
 broadcast/multicast from other devices. Seeing every device needs a mirror/SPAN port, a Wi-Fi adapter in monitor
@@ -101,6 +108,8 @@ netapp/
     ipinfo.py        # public IP / ISP / geolocation lookups
     nmapscan.py      # Nmap runner, progress parsing, XML results
     wifimonitor.py   # live connection sampling, roam & sticky-client detection
+    macos.py         # macOS Location permission + CoreWLAN fallbacks
+    macos_helper.py  # builds/drives the "NetApp Wi-Fi Helper" app (Swift source in netapp/macos_helper/)
     traffic.py       # tshark capture + plain-English traffic analysis
   static/            # index.html, styles.css, app.js + one script per tool (no build step)
 tests/               # parser tests with sample OS output, speed-test & API tests

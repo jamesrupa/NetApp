@@ -21,7 +21,7 @@ STATUS_NAMES = {0: "not_determined", 1: "restricted", 2: "denied", 3: "authorize
 
 SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
 HOW_TO = ("Open System Settings › Privacy & Security › Location Services, make sure Location Services is on, "
-          "and switch on \"Python\" (it may also be listed as your terminal app). Then restart NetApp.")
+          "and switch on \"NetApp Wi-Fi Helper\". Then scan again.")
 
 # CWSecurity enum (CoreWLAN), checked strongest first.
 CW_SECURITY = [
@@ -52,6 +52,26 @@ def _status_code(manager=None) -> int | None:
 
 
 def location_status() -> dict:
+    """Location permission of the NetApp Wi-Fi Helper app (falls back to this Python process)."""
+    helper_error = None
+    if _on_mac():
+        from . import macos_helper
+        try:
+            return {**macos_helper.status(), "via": "helper", "how_to": HOW_TO, "settings_url": SETTINGS_URL}
+        except macos_helper.HelperUnavailable as exc:
+            helper_error = str(exc)
+    result = _python_location_status()
+    if helper_error:
+        result["helper_error"] = helper_error
+    return result
+
+
+def _on_mac() -> bool:
+    from ..system import IS_MAC
+    return IS_MAC
+
+
+def _python_location_status() -> dict:
     try:
         import CoreLocation  # type: ignore[import-not-found]  # noqa: F401
     except ImportError:
@@ -72,7 +92,18 @@ _request_lock = threading.Lock()
 
 
 def request_location(timeout: float = 30.0) -> dict:
-    """Ask macOS for Location access and wait (spinning a run loop) for the answer.
+    """Ask macOS for Location access: through the helper app if possible, else for Python itself."""
+    if _on_mac():
+        from . import macos_helper
+        try:
+            return {**macos_helper.request(), "via": "helper", "how_to": HOW_TO, "settings_url": SETTINGS_URL}
+        except macos_helper.HelperUnavailable as exc:
+            return {**_python_request_location(timeout), "helper_error": str(exc)}
+    return _python_request_location(timeout)
+
+
+def _python_request_location(timeout: float = 30.0) -> dict:
+    """Ask macOS for Location access for this Python process and wait (spinning a run loop) for the answer.
 
     macOS shows a prompt the first time; afterwards the answer is remembered and can
     only be changed in System Settings. Either way "Python" shows up in the list there.
@@ -81,7 +112,7 @@ def request_location(timeout: float = 30.0) -> dict:
         import CoreLocation  # type: ignore[import-not-found]
         import Foundation  # type: ignore[import-not-found]
     except ImportError:
-        return location_status()
+        return _python_location_status()
     with _request_lock:
         manager = CoreLocation.CLLocationManager.alloc().init()
         code = _status_code(manager)
@@ -96,7 +127,7 @@ def request_location(timeout: float = 30.0) -> dict:
                 if code not in (0, None):
                     break
             manager.stopUpdatingLocation()
-    return location_status()
+    return _python_location_status()
 
 
 # --- CoreWLAN scan ------------------------------------------------------------------

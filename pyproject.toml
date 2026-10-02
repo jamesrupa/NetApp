@@ -24,7 +24,7 @@ netapp = "netapp.__main__:main"
 include = ["netapp*"]
 
 [tool.setuptools.package-data]
-netapp = ["static/*"]
+netapp = ["static/*", "macos_helper/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

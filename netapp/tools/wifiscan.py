@@ -255,7 +255,15 @@ def parse_system_profiler(data: dict) -> list[dict]:
 
 
 async def _scan_mac() -> list[dict]:
-    # Prefer Apple's CoreWLAN framework: faster, and it includes BSSIDs once Location access is granted.
+    # 1. The NetApp Wi-Fi Helper app: the only reliable way to keep Location permission (and so see names).
+    from . import macos_helper
+    try:
+        nets, _auth = await asyncio.to_thread(macos_helper.scan)
+        if nets:
+            return nets
+    except macos_helper.HelperUnavailable:
+        pass
+    # 2. CoreWLAN from Python directly, 3. system_profiler.
     try:
         nets = await asyncio.to_thread(macos.scan_corewlan)
         if nets:
