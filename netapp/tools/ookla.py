@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator
 from ..system import IS_MAC, IS_WINDOWS, find_tool, run_cmd, stream_cmd
 
 INSTALL_HELP = {
-    "Darwin": "Install with Homebrew: `brew tap teamookla/speedtest && brew install speedtest --force`, then restart NetApp.",
+    "Darwin": "Install with Homebrew: `brew tap teamookla/speedtest`, then `brew trust teamookla/speedtest` (newer Homebrew versions require approving third-party taps), then `brew install speedtest --force`. Restart NetApp afterwards.",
     "Windows": "Install with `winget install Ookla.Speedtest.CLI` (or download from https://www.speedtest.net/apps/cli), then restart NetApp.",
     "Linux": "Follow the instructions at https://www.speedtest.net/apps/cli (packages for Debian/Ubuntu and Fedora), then restart NetApp.",
 }

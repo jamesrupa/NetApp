@@ -45,7 +45,7 @@ None of the built-in tools need admin/root rights. The two optional external too
 
 | Tool | Install | Notes |
 |---|---|---|
-| **Speedtest.net CLI** (Speed Test) | macOS: `brew tap teamookla/speedtest && brew install speedtest --force` · Windows: `winget install Ookla.Speedtest.CLI` · Linux: [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) | Use Ookla's official CLI, not the unrelated Python `speedtest-cli`. NetApp tells them apart. Running a test accepts Ookla's EULA and privacy policy. |
+| **Speedtest.net CLI** (Speed Test) | macOS: `brew tap teamookla/speedtest`, `brew trust teamookla/speedtest` (newer Homebrew), then `brew install speedtest --force` · Windows: `winget install Ookla.Speedtest.CLI` · Linux: [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) | Use Ookla's official CLI, not the unrelated Python `speedtest-cli`. NetApp tells them apart. Running a test accepts Ookla's EULA and privacy policy. |
 | **Nmap** (Port Scanner) | Windows/macOS: [nmap.org/download](https://nmap.org/download.html) · macOS: `brew install nmap` · Linux: `sudo apt install nmap` | Works without admin (TCP connect scan). OS detection needs admin/root. |
 | **Wireshark / tshark** (Traffic Analyzer) | [wireshark.org/download](https://www.wireshark.org/download.html). Windows: keep **Npcap** and **TShark** ticked. Linux: `sudo apt install tshark` | Capture permissions: on macOS run Wireshark's "Install ChmodBPF" package; on Linux `sudo usermod -aG wireshark $USER` and log in again. |
 
