@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetApp</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NetApp</div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="speed">Speed Test</button>
+      <button role="tab" data-tab="scan">Network Scanner</button>
+      <button role="tab" data-tab="wifi">Wi-Fi Scanner</button>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+  </header>
+
+  <main>
+    <!-- Overview ------------------------------------------------------------------>
+    <section id="tab-overview" class="panel" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h1>Overview</h1>
+          <p class="muted">This machine's network configuration.</p>
+        </div>
+        <button class="btn" id="overview-refresh">Refresh</button>
+      </div>
+      <div class="tiles" id="overview-tiles"></div>
+      <h2>Interfaces</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Status</th><th>IPv4</th><th>Network</th><th>MAC</th><th class="num">Link speed</th></tr></thead>
+          <tbody id="iface-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Speed test ---------------------------------------------------------------->
+    <section id="tab-speed" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Speed Test</h1>
+          <p class="muted">Latency, download and upload against Cloudflare's speed-test servers.</p>
+        </div>
+        <button class="btn primary" id="speed-start">Start test</button>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="tile-label">Ping</div><div class="tile-value"><span id="sp-ping">–</span><small>ms</small></div></div>
+        <div class="tile"><div class="tile-label">Jitter</div><div class="tile-value"><span id="sp-jitter">–</span><small>ms</small></div></div>
+        <div class="tile"><div class="tile-label"><i class="key key-1"></i>Download</div><div class="tile-value"><span id="sp-down">–</span><small>Mbps</small></div></div>
+        <div class="tile"><div class="tile-label"><i class="key key-2"></i>Upload</div><div class="tile-value"><span id="sp-up">–</span><small>Mbps</small></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Throughput</h2>
+          <div class="legend"><span><i class="key key-1"></i>Download</span><span><i class="key key-2"></i>Upload</span></div>
+        </div>
+        <div class="chart" id="speed-chart"></div>
+        <p class="status" id="speed-status">Press <b>Start test</b> to begin. The test uses roughly 100–500 MB of data on a fast line.</p>
+      </div>
+    </section>
+
+    <!-- Network scanner ----------------------------------------------------------->
+    <section id="tab-scan" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Network Scanner</h1>
+          <p class="muted">Find devices on your local network. Only scan networks you own or are allowed to test.</p>
+        </div>
+      </div>
+      <form class="toolbar" id="scan-form">
+        <label>Network <select id="scan-net"></select></label>
+        <label>or CIDR <input id="scan-cidr" placeholder="192.168.1.0/24" spellcheck="false"></label>
+        <label>Timeout <select id="scan-timeout"><option value="0.5">0.5 s</option><option value="1" selected>1 s</option><option value="2">2 s</option></select></label>
+        <button class="btn primary" id="scan-start" type="submit">Scan</button>
+      </form>
+      <div class="progress" aria-hidden="true"><div id="scan-bar"></div></div>
+      <p class="status" id="scan-status">Pick a network and press <b>Scan</b>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>IP address</th><th>Hostname</th><th>MAC</th><th>Detected by</th><th class="num">Response</th><th>Ports</th></tr></thead>
+          <tbody id="scan-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Wi-Fi scanner ------------------------------------------------------------->
+    <section id="tab-wifi" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Wi-Fi Scanner</h1>
+          <p class="muted">Nearby access points, signal strength and channel congestion.</p>
+        </div>
+        <button class="btn primary" id="wifi-start">Scan</button>
+      </div>
+      <p class="status" id="wifi-status">Press <b>Scan</b> to list nearby networks.</p>
+      <div class="tiles" id="wifi-recs"></div>
+      <div class="grid-2" id="wifi-charts"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>SSID</th><th>BSSID</th><th>Signal</th><th class="num">Channel</th><th>Band</th><th>Security</th></tr></thead>
+          <tbody id="wifi-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
