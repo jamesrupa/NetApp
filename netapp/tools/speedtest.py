@@ -160,3 +160,29 @@ async def run_speedtest(
     finally:
         if own_client:
             await client.aclose()
+
+
+ENGINES = {"ookla": "Speedtest.net (Ookla)", "cloudflare": "Cloudflare"}
+
+
+async def run(engine: str = "auto", server_id: int | None = None, **cloudflare_kwargs) -> AsyncIterator[dict]:
+    """Run a speed test with the chosen engine.
+
+    "auto" prefers the official Speedtest.net CLI when it's installed and falls back
+    to Cloudflare's endpoints (which need no install) otherwise.
+    """
+    from . import ookla
+
+    if engine == "auto":
+        engine = "ookla" if (await ookla.status())["installed"] else "cloudflare"
+    if engine not in ENGINES:
+        raise ValueError(f"Unknown speed test engine: {engine}")
+    yield {"phase": "info", "type": "engine", "engine": engine, "label": ENGINES[engine]}
+    if engine == "ookla":
+        async for ev in ookla.run(server_id):
+            yield ev
+        return
+    async for ev in run_speedtest(**cloudflare_kwargs):
+        if ev["phase"] == "done":
+            ev = {**ev, "engine": ENGINES["cloudflare"], "server": {"name": "Cloudflare", "location": "nearest data center"}}
+        yield ev

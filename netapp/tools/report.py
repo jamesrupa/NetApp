@@ -110,7 +110,12 @@ def _speed_html(speed: dict | None) -> str:
         return f"<h2>Speed test</h2><p class='muted'>Failed: {escape(speed['error'])}</p>"
     tiles = [("Download", speed.get("download_mbps"), "Mbps"), ("Upload", speed.get("upload_mbps"), "Mbps"),
              ("Ping", speed.get("latency_ms"), "ms"), ("Jitter", speed.get("jitter_ms"), "ms")]
-    return "<h2>Speed test</h2><div class='tiles'>" + "".join(
+    if speed.get("packet_loss") is not None:
+        tiles.append(("Packet loss", speed["packet_loss"], "%"))
+    srv = speed.get("server") or {}
+    where = " · ".join(escape(str(x)) for x in (speed.get("engine"), srv.get("name"), srv.get("location"), speed.get("isp")) if x)
+    link = f" · <a href='{escape(speed['result_url'])}'>speedtest.net result</a>" if speed.get("result_url") else ""
+    return f"<h2>Speed test</h2><p class='muted'>{where}{link}</p><div class='tiles'>" + "".join(
         f"<div class='tile'><div class='l'>{label}</div><div class='v'>{'–' if v is None else f'{v:g}'}<small>{unit}</small></div></div>"
         for label, v, unit in tiles) + "</div>"
 

@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import diagnose, ipinfo, netinfo, netscan, nmapscan, report, speedtest, traffic, wifimonitor, wifiscan
+from .tools import diagnose, ipinfo, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -65,10 +65,22 @@ async def public_ip():
 
 @app.get("/api/speedtest")
 async def run_speedtest(
+    engine: str = Query("auto", pattern="^(auto|ookla|cloudflare)$"),
+    server_id: int | None = None,
     duration: float = Query(8.0, ge=2, le=30),
     streams: int = Query(4, ge=1, le=16),
 ):
-    return sse(speedtest.run_speedtest(duration=duration, streams=streams))
+    return sse(speedtest.run(engine, server_id, duration=duration, streams=streams))
+
+
+@app.get("/api/speedtest/status")
+async def speedtest_status():
+    return {"ookla": await ookla.status(refresh=True)}
+
+
+@app.get("/api/speedtest/servers")
+async def speedtest_servers():
+    return {"servers": await ookla.servers()}
 
 
 @app.get("/api/scan")

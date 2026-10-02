@@ -246,24 +246,42 @@ $("#overview-refresh").addEventListener("click", () => loadOverview(true));
 const SPEED_DURATION = 8;
 const speed = { down: [], up: [] };
 function drawSpeed() {
+  // Cloudflare phases last 8 s; Speedtest.net decides its own duration, so the axis grows to fit.
+  const lastT = Math.max(0, ...speed.down.map((p) => p.x), ...speed.up.map((p) => p.x));
   lineChart($("#speed-chart"), [
     { name: "Download", cls: "series-1", points: speed.down },
     { name: "Upload", cls: "series-2", points: speed.up },
-  ], { xMax: SPEED_DURATION, xLabel: (x) => `${x.toFixed(1).replace(/\.0$/, "")}s`, yUnit: "Mbps" });
+  ], { xMax: Math.max(SPEED_DURATION, Math.ceil(lastT)), xLabel: (x) => `${x.toFixed(1).replace(/\.0$/, "")}s`, yUnit: "Mbps" });
 }
 drawSpeed();
 
 function resetSpeed() {
   speed.down = []; speed.up = [];
-  ["#sp-ping", "#sp-jitter", "#sp-down", "#sp-up"].forEach((s) => { $(s).textContent = "–"; });
+  ["#sp-ping", "#sp-jitter", "#sp-down", "#sp-up", "#sp-loss"].forEach((s) => { $(s).textContent = "–"; });
+  $("#sp-loss-tile").hidden = true;
+  $("#sp-server-info").innerHTML = "";
   drawSpeed();
 }
 
 const SPEED_LABELS = { latency: "Measuring latency…", download: "Testing download…", upload: "Testing upload…" };
+const safeUrl = (u) => (typeof u === "string" && u.startsWith("https://") ? u : null);
+
+function speedServerLine(ev) {
+  const s = ev.server || {};
+  const parts = [ev.engine || ev.label, s.name && `Server: ${s.name}${s.location ? ` (${s.location})` : ""}`, ev.isp && `ISP: ${ev.isp}`]
+    .filter(Boolean).map(esc);
+  const url = safeUrl(ev.result_url);
+  return parts.join(" · ") + (url ? ` · <a href="${esc(url)}" target="_blank" rel="noopener">View result on speedtest.net</a>` : "");
+}
 
 /** Apply one speed-test event to the Speed Test tab. Returns a short status line (or null). */
 function applySpeedEvent(ev) {
   if (ev.type === "error") return null;
+  if (ev.phase === "info") {
+    if (ev.type === "engine") $("#sp-server-info").textContent = ev.label;
+    if (ev.type === "server") $("#sp-server-info").innerHTML = speedServerLine({ ...ev, engine: "Speedtest.net (Ookla)" });
+    return null;
+  }
   if (ev.phase === "latency") {
     if (ev.type === "sample") $("#sp-ping").textContent = ev.ms.toFixed(0);
     if (ev.type === "result") {
@@ -282,16 +300,58 @@ function applySpeedEvent(ev) {
     if (ev.type === "result") el.textContent = ev.mbps.toFixed(1);
   }
   if (ev.type === "start") return SPEED_LABELS[ev.phase] || null;
-  if (ev.phase === "done") return `Download ${ev.download_mbps} Mbps · Upload ${ev.upload_mbps} Mbps · Ping ${ev.latency_ms} ms`;
+  if (ev.phase === "done") {
+    if (ev.packet_loss != null) {
+      $("#sp-loss").textContent = ev.packet_loss.toFixed(1);
+      $("#sp-loss-tile").hidden = false;
+    }
+    $("#sp-server-info").innerHTML = speedServerLine(ev);
+    return `Download ${ev.download_mbps} Mbps · Upload ${ev.upload_mbps} Mbps · Ping ${ev.latency_ms} ms`;
+  }
   return null;
 }
 
-$("#speed-start").addEventListener("click", () => {
+let speedStatus = null;
+async function loadSpeed() {
+  if (speedStatus) return;
+  try {
+    speedStatus = (await api("/api/speedtest/status")).ookla;
+  } catch {
+    return;
+  }
+  const engine = $("#sp-engine");
+  if (speedStatus.installed) {
+    $("#sp-terms").innerHTML = `Speedtest.net tests use the official Speedtest® CLI by Ookla (${esc(speedStatus.version)}). Running one accepts Ookla's
+      <a href="${esc(speedStatus.terms_url)}" target="_blank" rel="noopener">EULA</a> and
+      <a href="${esc(speedStatus.privacy_url)}" target="_blank" rel="noopener">Privacy Policy</a>; results are shared with Speedtest.net.`;
+    api("/api/speedtest/servers").then(({ servers }) => {
+      $("#sp-server").insertAdjacentHTML("beforeend", servers.map((s) =>
+        `<option value="${esc(s.id)}">${esc(s.name)} – ${esc(s.location)}${s.country ? `, ${esc(s.country)}` : ""}</option>`).join(""));
+    }).catch(() => {});
+  } else {
+    engine.value = "cloudflare";
+    engine.querySelector('[value="ookla"]').textContent = "Speedtest.net (Ookla), not installed";
+    const box = $("#sp-missing");
+    box.hidden = false;
+    box.innerHTML = `<h2>Install the Speedtest.net CLI</h2><p>${esc(speedStatus.conflict || speedStatus.install_help)}</p>
+      <p class="sub">Until then, tests use Cloudflare's speed-test servers, which need no install.</p>`;
+  }
+  const sync = () => { $("#sp-server-wrap").hidden = engine.value !== "ookla"; };
+  engine.addEventListener("change", sync);
+  sync();
+}
+loaders.speed = loadSpeed;
+
+$("#speed-form").addEventListener("submit", (e) => {
+  e.preventDefault();
   const btn = $("#speed-start"), status = $("#speed-status");
   btn.disabled = true;
   resetSpeed();
+  const params = new URLSearchParams({ engine: $("#sp-engine").value, duration: SPEED_DURATION });
+  if ($("#sp-engine").value === "ookla" && $("#sp-server").value) params.set("server_id", $("#sp-server").value);
+  setStatus(status, $("#sp-engine").value === "ookla" ? "Finding the best Speedtest.net server…" : "Starting…");
   let failed = false;
-  stream(`/api/speedtest?duration=${SPEED_DURATION}`, (ev) => {
+  stream(`/api/speedtest?${params}`, (ev) => {
     if (ev.type === "error") { failed = true; setStatus(status, `Speed test failed: ${esc(ev.message)}`, true); return; }
     const line = applySpeedEvent(ev);
     if (line) setStatus(status, ev.phase === "done" ? `Done. ${line}.` : line);

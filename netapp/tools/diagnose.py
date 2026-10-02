@@ -31,7 +31,7 @@ MODES = {
 
 async def _speed(report: dict) -> AsyncIterator[dict]:
     result: dict = {}
-    async for ev in speedtest.run_speedtest():
+    async for ev in speedtest.run():
         if ev["type"] == "error":
             result = {"error": ev["message"]}
         elif ev["phase"] == "done":

@@ -67,6 +67,16 @@ def speed_rules(speed: dict | None) -> list[dict]:
             out.append(rec("warning", "Speed", f"Elevated latency ({lat:.0f} ms)",
                            "Typical broadband is 10-40 ms. Higher values hurt gaming and real-time calls.",
                            "Move closer to the router or use Ethernet, and check for other devices saturating the connection."))
+    loss = speed.get("packet_loss")
+    if loss is not None:
+        if loss >= 2:
+            out.append(rec("critical" if loss >= 5 else "warning", "Speed", f"Packet loss ({loss:.1f}%)",
+                           "Lost packets have to be resent. Even 1-2% makes calls choppy and games lag, and slows downloads.",
+                           "Test over Ethernet: if the loss disappears, it's Wi-Fi interference or weak signal. If it stays, "
+                           "check the modem's cables and signal levels and contact your ISP with this result."))
+        elif loss > 0.5:
+            out.append(rec("info", "Speed", f"Minor packet loss ({loss:.1f}%)",
+                           "A little loss during a busy test is common; worth re-testing if calls ever stutter."))
     if jit is not None:
         if jit > 30:
             out.append(rec("warning", "Speed", f"High jitter ({jit:.0f} ms)",

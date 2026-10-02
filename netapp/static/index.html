@@ -99,16 +99,27 @@
       <div class="panel-head">
         <div>
           <h1>Speed Test</h1>
-          <p class="muted">Latency, download and upload against Cloudflare's speed-test servers.</p>
+          <p class="muted">Ping, jitter, download and upload, measured with Speedtest.net or Cloudflare.</p>
         </div>
-        <button class="btn primary" id="speed-start">Start test</button>
       </div>
+      <div class="card notice" id="sp-missing" hidden></div>
+      <form class="toolbar" id="speed-form">
+        <label>Engine <select id="sp-engine">
+          <option value="ookla">Speedtest.net (Ookla)</option>
+          <option value="cloudflare">Cloudflare</option>
+        </select></label>
+        <label id="sp-server-wrap">Server <select id="sp-server"><option value="">Closest server (automatic)</option></select></label>
+        <button class="btn primary" id="speed-start" type="submit">Start test</button>
+      </form>
+      <p class="sub" id="sp-terms"></p>
       <div class="tiles">
         <div class="tile"><div class="tile-label">Ping</div><div class="tile-value"><span id="sp-ping">–</span><small>ms</small></div></div>
         <div class="tile"><div class="tile-label">Jitter</div><div class="tile-value"><span id="sp-jitter">–</span><small>ms</small></div></div>
         <div class="tile"><div class="tile-label"><i class="key key-1"></i>Download</div><div class="tile-value"><span id="sp-down">–</span><small>Mbps</small></div></div>
         <div class="tile"><div class="tile-label"><i class="key key-2"></i>Upload</div><div class="tile-value"><span id="sp-up">–</span><small>Mbps</small></div></div>
+        <div class="tile" id="sp-loss-tile" hidden><div class="tile-label">Packet loss</div><div class="tile-value"><span id="sp-loss">–</span><small>%</small></div></div>
       </div>
+      <p class="sub" id="sp-server-info"></p>
       <div class="card">
         <div class="card-head">
           <h2>Throughput</h2>

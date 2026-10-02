@@ -9,7 +9,7 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 |---|---|
 | **Health Check** | One-click **Quick scan** (speed test) or **Full scan** (speed test, Wi-Fi signal and channel analysis, device discovery and an open-port security check). Ends with a health score and a prioritized list of recommended changes. Results export as HTML/JSON/CSV. |
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
-| **Speed Test** | Latency (median ping) and jitter, then multi-stream download and upload throughput with a live chart. Uses Cloudflare's speed-test endpoints. |
+| **Speed Test** | Ping, jitter, download, upload and packet loss using the official **Speedtest.net (Ookla) CLI**, with a server picker and a shareable result link. Falls back to Cloudflare's speed-test endpoints when the CLI isn't installed. Live throughput chart. |
 | **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs) and response time. Can also run a common-ports scan on each device. |
 | **Public IP** | Your public IPv4/IPv6 address, ISP, ASN, approximate location, time zone and reverse DNS. Can also look up any other public IP. |
 | **Port Scanner (Nmap)** | Runs [Nmap](https://nmap.org) with ready-made profiles (host discovery, top 100, top 1000 + versions, all ports) and optional OS detection and default scripts. Shows live progress, per-device ports, software versions, MAC vendors and OS guesses, with the same security recommendations as the Health Check. |
@@ -45,6 +45,7 @@ None of the built-in tools need admin/root rights. The two optional external too
 
 | Tool | Install | Notes |
 |---|---|---|
+| **Speedtest.net CLI** (Speed Test) | macOS: `brew tap teamookla/speedtest && brew install speedtest --force` · Windows: `winget install Ookla.Speedtest.CLI` · Linux: [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) | Use Ookla's official CLI, not the unrelated Python `speedtest-cli`. NetApp tells them apart. Running a test accepts Ookla's EULA and privacy policy. |
 | **Nmap** (Port Scanner) | Windows/macOS: [nmap.org/download](https://nmap.org/download.html) · macOS: `brew install nmap` · Linux: `sudo apt install nmap` | Works without admin (TCP connect scan). OS detection needs admin/root. |
 | **Wireshark / tshark** (Traffic Analyzer) | [wireshark.org/download](https://www.wireshark.org/download.html). Windows: keep **Npcap** and **TShark** ticked. Linux: `sudo apt install tshark` | Capture permissions: on macOS run Wireshark's "Install ChmodBPF" package; on Linux `sudo usermod -aG wireshark $USER` and log in again. |
 
@@ -90,7 +91,8 @@ netapp/
   system.py          # cross-platform command runner
   tools/
     netinfo.py       # interfaces, gateway, DNS, public IP
-    speedtest.py     # latency/jitter, download, upload
+    speedtest.py     # engine picker + built-in Cloudflare test (latency/jitter, download, upload)
+    ookla.py         # Speedtest.net via Ookla's official CLI (JSONL progress)
     netscan.py       # host discovery, ARP, reverse DNS, port scan
     wifiscan.py      # per-OS Wi-Fi parsers + channel analysis
     diagnose.py      # quick/full scan orchestration
