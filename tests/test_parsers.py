@@ -1,6 +1,6 @@
 import pytest
 
-from netapp.tools import netinfo, netscan, wifiscan
+from subnetry.tools import netinfo, netscan, wifiscan
 
 NMCLI = (
     "*:AA\\:BB\\:CC\\:DD\\:EE\\:01:HomeNet:6:2437 MHz:270 Mbit/s:82:WPA2\n"

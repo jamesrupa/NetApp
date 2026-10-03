@@ -6,8 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
-from netapp.server import app
-from netapp.tools import speedtest
+from subnetry.server import app
+from subnetry.tools import speedtest
 
 # A stand-in for speed.cloudflare.com's endpoints.
 mock = FastAPI()
@@ -58,7 +58,7 @@ client = TestClient(app)
 
 
 def test_index_and_static():
-    assert "NetApp" in client.get("/").text
+    assert "Subnetry" in client.get("/").text
     assert client.get("/static/app.js").status_code == 200
 
 
@@ -87,7 +87,7 @@ def test_port_scan_localhost_finds_listener():
         server = await asyncio.start_server(lambda r, w: w.close(), "127.0.0.1", 0)
         port = server.sockets[0].getsockname()[1]
         async with server:
-            from netapp.tools import netscan
+            from subnetry.tools import netscan
             return port, await netscan.scan_ports("127.0.0.1", ports=[port, 1])
     port, result = asyncio.run(run())
     assert [p["port"] for p in result["open"]] == [port]

@@ -1,11 +1,11 @@
-"""NetApp as a desktop app: a native window (pywebview) and an installable launcher.
+"""Subnetry as a desktop app: a native window (pywebview) and an installable launcher.
 
-  python -m netapp --app            open NetApp in its own window
-  python -m netapp --install-app    add NetApp to Applications (macOS), the Start menu + Desktop
-                                    (Windows) or the app menu (Linux), with the NetApp icon
-  python -m netapp --uninstall-app  remove that launcher again
+  python -m subnetry --app            open Subnetry in its own window
+  python -m subnetry --install-app    add Subnetry to Applications (macOS), the Start menu + Desktop
+                                    (Windows) or the app menu (Linux), with the Subnetry icon
+  python -m subnetry --uninstall-app  remove that launcher again
 
-The launcher runs this same Python environment, so it always uses your current copy of NetApp.
+The launcher runs this same Python environment, so it always uses your current copy of Subnetry.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pathlib import Path
 PACKAGE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = PACKAGE_DIR.parent
 ASSETS = PACKAGE_DIR / "desktop"
-APP_ID = "com.netapp.desktop"
+APP_ID = "com.subnetry.desktop"
 
 WEBVIEW_HELP = ("The desktop window needs pywebview: run `pip install -r requirements.txt` "
                 "(on Linux also install GTK/WebKit, e.g. `sudo apt install python3-gi gir1.2-webkit2-4.1`, "
@@ -63,15 +63,15 @@ def wait_for_server(host: str, port: int, timeout: float = 15) -> bool:
 
 
 def _brand_macos_process() -> None:
-    """Show NetApp's name and icon in the Dock/menu bar instead of Python's (best effort)."""
+    """Show Subnetry's name and icon in the Dock/menu bar instead of Python's (best effort)."""
     try:
         from AppKit import NSApplication, NSImage  # type: ignore[import-not-found]
         from Foundation import NSBundle  # type: ignore[import-not-found]
 
         info = NSBundle.mainBundle().infoDictionary()
         if info is not None:
-            info["CFBundleName"] = "NetApp"
-        icon = NSImage.alloc().initWithContentsOfFile_(str(ASSETS / "NetApp.icns"))
+            info["CFBundleName"] = "Subnetry"
+        icon = NSImage.alloc().initWithContentsOfFile_(str(ASSETS / "Subnetry.icns"))
         if icon is not None:
             NSApplication.sharedApplication().setApplicationIconImage_(icon)
     except Exception:
@@ -87,12 +87,12 @@ def run_window(host: str = "127.0.0.1", port: int = 8765) -> bool:
     import uvicorn
 
     port = pick_port(host, port)
-    config = uvicorn.Config("netapp.server:app", host=host, port=port, log_level="warning")
+    config = uvicorn.Config("subnetry.server:app", host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, name="netapp-server", daemon=True)
+    thread = threading.Thread(target=server.run, name="subnetry-server", daemon=True)
     thread.start()
     if not wait_for_server(host, port):
-        print("NetApp's server didn't start; see the messages above.", file=sys.stderr)
+        print("Subnetry's server didn't start; see the messages above.", file=sys.stderr)
         server.should_exit = True
         return True
 
@@ -103,12 +103,12 @@ def run_window(host: str = "127.0.0.1", port: int = 8765) -> bool:
             webview.settings[key] = value  # pywebview 5+: report exports save normally, links open in your browser
         except (AttributeError, TypeError):
             pass
-    webview.create_window("NetApp", f"http://{host}:{port}/", width=1400, height=900, min_size=(900, 600),
+    webview.create_window("Subnetry", f"http://{host}:{port}/", width=1400, height=900, min_size=(900, 600),
                           background_color="#060a12", text_select=True)
     # Keep browser storage between runs (theme choice etc.); pywebview defaults to a private session.
-    storage = Path.home() / (".netapp" if sys.platform != "darwin" else "Library/Application Support/NetApp") / "webview"
+    storage = Path.home() / (".subnetry" if sys.platform != "darwin" else "Library/Application Support/Subnetry") / "webview"
     storage.mkdir(parents=True, exist_ok=True)
-    options = {"private_mode": False, "storage_path": str(storage), "icon": str(ASSETS / "NetApp.png")}
+    options = {"private_mode": False, "storage_path": str(storage), "icon": str(ASSETS / "Subnetry.png")}
     while True:  # older pywebview versions lack some options: drop them one by one
         try:
             webview.start(**options)
@@ -136,38 +136,38 @@ def _python_for_launcher() -> str:
 
 
 def macos_app_path(apps_dir: Path | None = None) -> Path:
-    return (apps_dir or Path.home() / "Applications") / "NetApp.app"
+    return (apps_dir or Path.home() / "Applications") / "Subnetry.app"
 
 
 def build_macos_app(apps_dir: Path | None = None, python: str | None = None) -> Path:
-    """A minimal .app bundle whose executable starts NetApp's desktop window."""
+    """A minimal .app bundle whose executable starts Subnetry's desktop window."""
     app = macos_app_path(apps_dir)
     if app.exists():
         shutil.rmtree(app)
     (app / "Contents" / "MacOS").mkdir(parents=True)
     (app / "Contents" / "Resources").mkdir()
-    shutil.copy(ASSETS / "NetApp.icns", app / "Contents" / "Resources" / "NetApp.icns")
+    shutil.copy(ASSETS / "Subnetry.icns", app / "Contents" / "Resources" / "Subnetry.icns")
     with open(app / "Contents" / "Info.plist", "wb") as f:
         plistlib.dump({
-            "CFBundleName": "NetApp",
-            "CFBundleDisplayName": "NetApp",
+            "CFBundleName": "Subnetry",
+            "CFBundleDisplayName": "Subnetry",
             "CFBundleIdentifier": APP_ID,
-            "CFBundleExecutable": "NetApp",
-            "CFBundleIconFile": "NetApp",
+            "CFBundleExecutable": "Subnetry",
+            "CFBundleIconFile": "Subnetry",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": _version(),
             "CFBundleVersion": _version(),
             "LSMinimumSystemVersion": "11.0",
             "NSHighResolutionCapable": True,
         }, f)
-    log = Path.home() / "Library" / "Logs" / "NetApp.log"
-    launcher = app / "Contents" / "MacOS" / "NetApp"
+    log = Path.home() / "Library" / "Logs" / "Subnetry.log"
+    launcher = app / "Contents" / "MacOS" / "Subnetry"
     launcher.write_text(
         "#!/bin/bash\n"
-        "# Starts NetApp's desktop window with the Python environment it was installed from.\n"
+        "# Starts Subnetry's desktop window with the Python environment it was installed from.\n"
         f'mkdir -p "{log.parent}"\n'
         f'cd "{PROJECT_DIR}" || exit 1\n'
-        f'exec "{python or _python_for_launcher()}" -m netapp --app >>"{log}" 2>&1\n'
+        f'exec "{python or _python_for_launcher()}" -m subnetry --app >>"{log}" 2>&1\n'
     )
     launcher.chmod(0o755)
     return app
@@ -178,49 +178,78 @@ def _version() -> str:
     return __version__
 
 
+def remove_legacy_launchers() -> list[str]:
+    """Launchers created before the app was renamed from NetApp to Subnetry."""
+    removed = []
+    home = Path.home()
+    legacy_app = home / "Applications" / "NetApp.app"
+    try:
+        is_ours = plistlib.loads((legacy_app / "Contents" / "Info.plist").read_bytes()).get("CFBundleIdentifier") == "com.netapp.desktop"
+    except (OSError, plistlib.InvalidFileException, ValueError):
+        is_ours = False
+    if is_ours:
+        shutil.rmtree(legacy_app)
+        removed.append(str(legacy_app))
+    others = [home / ".local" / "share" / "applications" / "netapp.desktop"]
+    if sys.platform == "win32":
+        others += [Path(os.environ["USERPROFILE"]) / "Desktop" / "NetApp.lnk",
+                   Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "NetApp.lnk"]
+    for path in others:
+        if path.exists():
+            path.unlink()
+            removed.append(str(path))
+    return removed
+
+
 def install_launcher() -> str:
+    legacy = remove_legacy_launchers()
+    note = ("\nRemoved the old launcher(s) from before the rename: " + ", ".join(legacy)) if legacy else ""
+    return _install_launcher() + note
+
+
+def _install_launcher() -> str:
     if sys.platform == "darwin":
         app = build_macos_app()
         lsregister = ("/System/Library/Frameworks/CoreServices.framework/Frameworks/"
                       "LaunchServices.framework/Support/lsregister")
         if os.path.exists(lsregister):  # refresh Finder/Dock so the icon shows straight away
             subprocess.run([lsregister, "-f", str(app)], capture_output=True)
-        return (f"Installed {app}\nOpen it from Launchpad, Spotlight (\"NetApp\") or Finder › Applications, "
+        return (f"Installed {app}\nOpen it from Launchpad, Spotlight (\"Subnetry\") or Finder › Applications, "
                 "and drag it to the Dock to keep it there.")
     if sys.platform == "win32":
         paths = []
         for folder in (Path(os.environ["USERPROFILE"]) / "Desktop",
                        Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs"):
-            lnk = folder / "NetApp.lnk"
+            lnk = folder / "Subnetry.lnk"
             script = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{lnk}');"
-                      f"$s.TargetPath='{_python_for_launcher()}';$s.Arguments='-m netapp --app';"
-                      f"$s.WorkingDirectory='{PROJECT_DIR}';$s.IconLocation='{ASSETS / 'NetApp.ico'}';"
-                      "$s.Description='NetApp network diagnostics';$s.Save()")
+                      f"$s.TargetPath='{_python_for_launcher()}';$s.Arguments='-m subnetry --app';"
+                      f"$s.WorkingDirectory='{PROJECT_DIR}';$s.IconLocation='{ASSETS / 'Subnetry.ico'}';"
+                      "$s.Description='Subnetry network diagnostics';$s.Save()")
             subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True, capture_output=True)
             paths.append(str(lnk))
         return "Created shortcuts:\n  " + "\n  ".join(paths)
     desktop = linux_desktop_entry()
-    return f"Installed {desktop}\nNetApp now appears in your applications menu."
+    return f"Installed {desktop}\nSubnetry now appears in your applications menu."
 
 
 def linux_desktop_entry(apps_dir: Path | None = None, python: str | None = None) -> Path:
     apps = apps_dir or Path.home() / ".local" / "share" / "applications"
     apps.mkdir(parents=True, exist_ok=True)
-    path = apps / "netapp.desktop"
+    path = apps / "subnetry.desktop"
     path.write_text(
-        "[Desktop Entry]\nType=Application\nName=NetApp\nComment=Network analysis & diagnostics\n"
-        f'Exec=sh -c \'cd "{PROJECT_DIR}" && exec "{python or _python_for_launcher()}" -m netapp --app\'\n'
-        f"Icon={ASSETS / 'NetApp.png'}\nTerminal=false\nCategories=Network;Utility;\n"
+        "[Desktop Entry]\nType=Application\nName=Subnetry\nComment=Network analysis & diagnostics\n"
+        f'Exec=sh -c \'cd "{PROJECT_DIR}" && exec "{python or _python_for_launcher()}" -m subnetry --app\'\n'
+        f"Icon={ASSETS / 'Subnetry.png'}\nTerminal=false\nCategories=Network;Utility;\n"
     )
     return path
 
 
 def uninstall_launcher() -> str:
-    removed = []
-    targets = [macos_app_path(), Path.home() / ".local" / "share" / "applications" / "netapp.desktop"]
+    removed = remove_legacy_launchers()
+    targets = [macos_app_path(), Path.home() / ".local" / "share" / "applications" / "subnetry.desktop"]
     if sys.platform == "win32":
-        targets += [Path(os.environ["USERPROFILE"]) / "Desktop" / "NetApp.lnk",
-                    Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "NetApp.lnk"]
+        targets += [Path(os.environ["USERPROFILE"]) / "Desktop" / "Subnetry.lnk",
+                    Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Subnetry.lnk"]
     for t in targets:
         if t.is_dir():
             shutil.rmtree(t)

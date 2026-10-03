@@ -5,8 +5,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from netapp.tools import ipinfo, nmapscan, traffic, wifimonitor
-from netapp.tools.netscan import ScanError
+from subnetry.tools import ipinfo, nmapscan, traffic, wifimonitor
+from subnetry.tools.netscan import ScanError
 
 # --- Wi-Fi monitor parsers ------------------------------------------------------------
 
@@ -303,7 +303,7 @@ def test_capture_reports_tshark_errors():
 
 @pytest.mark.skipif(not traffic.find_tshark(), reason="tshark not installed")
 def test_live_capture_on_loopback(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
 
     async def run():
         async def chatter():
@@ -369,7 +369,7 @@ def test_public_single_host_skips_ping():
 
 
 def test_safe_concurrency_respects_low_file_limits(monkeypatch):
-    from netapp import system
+    from subnetry import system
     monkeypatch.setattr(system, "raise_open_file_limit", lambda target=4096: 256)  # macOS default
     assert system.safe_concurrency(11, 64) == 16  # (256 - 64) // 12
     monkeypatch.setattr(system, "raise_open_file_limit", lambda target=4096: 4096)

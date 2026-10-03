@@ -18,7 +18,7 @@ function stream(path, onEvent, onEnd) {
   const finish = (err) => { if (!finished) { finished = true; es.close(); onEnd(err); } };
   es.onmessage = (m) => onEvent(JSON.parse(m.data));
   es.addEventListener("end", () => finish());
-  es.onerror = () => finish(new Error("Connection to the NetApp server was lost."));
+  es.onerror = () => finish(new Error("Connection to the Subnetry server was lost."));
   return { stop: () => finish() };  // stopping closes the stream; the server then stops the tool
 }
 
@@ -155,13 +155,13 @@ document.querySelectorAll(".tabs button").forEach((b) => {
   }
 });
 
-/** "NETAPP // NETWORK // SPEED TEST" above each page title. */
+/** "SUBNETRY // NETWORK // SPEED TEST" above each page title. */
 function updateCrumb(name) {
   const btn = document.querySelector(`.tabs button[data-tab="${name}"]`);
   let group = btn?.previousElementSibling;
   while (group && !group.classList.contains("nav-group")) group = group.previousElementSibling;
   const crumb = $("#crumb");
-  if (crumb && btn) typeText(crumb, ["NetApp", group?.textContent, btn.textContent].filter(Boolean).join("  //  "));
+  if (crumb && btn) typeText(crumb, ["Subnetry", group?.textContent, btn.textContent].filter(Boolean).join("  //  "));
 }
 
 // Top-bar status strip: host, local IP, gateway and a clock.
@@ -191,12 +191,12 @@ function storage(key, value) {
     localStorage.setItem(key, value);
   } catch { return null; }
 }
-const savedTheme = storage("netapp-theme");
+const savedTheme = storage("subnetry-theme") || storage("netapp-theme");  // (older versions used "netapp-theme")
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
 $("#theme-toggle").addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";  // dark is the default
   document.documentElement.dataset.theme = next;
-  storage("netapp-theme", next);
+  storage("subnetry-theme", next);
 });
 
 // --- tooltip --------------------------------------------------------------------------
@@ -709,10 +709,10 @@ function showLocationNotice(box, loc, onGranted) {
   box.hidden = false;
   box.innerHTML = `<h2>macOS is hiding Wi-Fi network names</h2>
     <p>Since macOS 14, apps only see network names and access-point IDs with <b>Location Services</b> permission,
-      because nearby networks reveal where you are. macOS won't keep that permission for Python, so NetApp uses a small
-      helper app, <b>NetApp Wi-Fi Helper</b>, to read Wi-Fi details. Your location itself is never used.</p>
+      because nearby networks reveal where you are. macOS won't keep that permission for Python, so Subnetry uses a small
+      helper app, <b>Subnetry Wi-Fi Helper</b>, to read Wi-Fi details. Your location itself is never used.</p>
     ${granted
-      ? `<p><b>Permission is granted</b>, but names are still hidden. Scan again; if that doesn't help, quit NetApp (Ctrl+C in Terminal) and start it again.</p>`
+      ? `<p><b>Permission is granted</b>, but names are still hidden. Scan again; if that doesn't help, quit Subnetry (Ctrl+C in Terminal) and start it again.</p>`
       : `<p class="toolbar"><button class="btn primary" type="button" data-loc-request>Allow location access</button>
          <a class="btn" href="${esc(loc.settings_url)}">Open Location Services settings</a></p>
          <p class="sub" data-loc-msg>${loc.status === "denied" ? `Access was previously denied. ${esc(loc.how_to)}` : ""}${loc.helper_error ? ` ${esc(loc.helper_error)}` : ""}</p>`}`;
@@ -720,8 +720,8 @@ function showLocationNotice(box, loc, onGranted) {
   btn?.addEventListener("click", async () => {
     const msg = box.querySelector("[data-loc-msg]");
     btn.disabled = true;
-    msg.textContent = "Setting up NetApp Wi-Fi Helper (the first time it's built, which can take up to a minute)… "
-      + "When macOS asks whether \"NetApp Wi-Fi Helper\" may use your location, choose Allow.";
+    msg.textContent = "Setting up Subnetry Wi-Fi Helper (the first time it's built, which can take up to a minute)… "
+      + "When macOS asks whether \"Subnetry Wi-Fi Helper\" may use your location, choose Allow.";
     try {
       const res = await api("/api/macos/location/request", { method: "POST" });
       if (res.status === "authorized") {

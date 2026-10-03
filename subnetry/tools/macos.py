@@ -21,7 +21,7 @@ STATUS_NAMES = {0: "not_determined", 1: "restricted", 2: "denied", 3: "authorize
 
 SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
 HOW_TO = ("Open System Settings › Privacy & Security › Location Services, make sure Location Services is on, "
-          "and switch on \"NetApp Wi-Fi Helper\". Then scan again.")
+          "and switch on \"Subnetry Wi-Fi Helper\". Then scan again.")
 
 # CWSecurity enum (CoreWLAN), checked strongest first.
 CW_SECURITY = [
@@ -52,7 +52,7 @@ def _status_code(manager=None) -> int | None:
 
 
 def location_status() -> dict:
-    """Location permission of the NetApp Wi-Fi Helper app (falls back to this Python process)."""
+    """Location permission of the Subnetry Wi-Fi Helper app (falls back to this Python process)."""
     helper_error = None
     if _on_mac():
         from . import macos_helper
@@ -143,7 +143,7 @@ def _security(net) -> str | None:
 
 
 def corewlan_network(net, current_bssid: str | None, current_ssid: str | None) -> dict:
-    """Convert a CWNetwork (or anything with the same methods) into NetApp's network dict."""
+    """Convert a CWNetwork (or anything with the same methods) into Subnetry's network dict."""
     from .wifiscan import make_network
 
     ssid = net.ssid()

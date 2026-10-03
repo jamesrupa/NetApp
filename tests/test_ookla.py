@@ -7,7 +7,7 @@ import textwrap
 
 import pytest
 
-from netapp.tools import advisor, ookla, speedtest
+from subnetry.tools import advisor, ookla, speedtest
 
 SERVER = {"id": 1234, "host": "speedtest.example.net", "port": 8080, "name": "Example ISP",
           "location": "Austin, TX", "country": "United States", "ip": "198.51.100.1"}

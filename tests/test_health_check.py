@@ -6,8 +6,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from netapp import server
-from netapp.tools import advisor, diagnose, report, wifiscan
+from subnetry import server
+from subnetry.tools import advisor, diagnose, report, wifiscan
 
 
 def titles(recs, severity=None):
@@ -214,7 +214,7 @@ def test_html_escapes_untrusted_names():
 
 
 def test_api_full_scan_saves_and_exports(stub_tools, monkeypatch, tmp_path):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
     client = TestClient(server.app)
     with client.stream("GET", "/api/diagnose", params={"mode": "full"}) as r:
         body = r.read().decode()
@@ -232,7 +232,7 @@ def test_api_full_scan_saves_and_exports(stub_tools, monkeypatch, tmp_path):
 
 
 def test_quick_scan_is_not_saved(stub_tools, monkeypatch, tmp_path):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
     client = TestClient(server.app)
     with client.stream("GET", "/api/diagnose", params={"mode": "quick"}) as r:
         body = r.read().decode()

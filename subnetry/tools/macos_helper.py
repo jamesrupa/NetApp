@@ -1,13 +1,13 @@
-"""Build and drive "NetApp Wi-Fi Helper", a tiny macOS app that reads Wi-Fi details.
+"""Build and drive "Subnetry Wi-Fi Helper", a tiny macOS app that reads Wi-Fi details.
 
 Why a separate app: on macOS 14+ Wi-Fi names (SSIDs) and access-point IDs (BSSIDs)
 require Location Services permission, and macOS only keeps that permission for a
 real app bundle that declares why it needs location (NSLocation*UsageDescription).
 Homebrew's Python isn't such an app, so its Location toggle keeps switching off.
 
-The helper's Swift source ships with NetApp. On first use it's compiled with the
+The helper's Swift source ships with Subnetry. On first use it's compiled with the
 Xcode Command Line Tools (`swiftc`), ad-hoc code-signed, and stored in
-~/Library/Application Support/NetApp/. Permission is granted to the helper once
+~/Library/Application Support/Subnetry/. Permission is granted to the helper once
 and sticks, because the helper's identity doesn't change until its source does.
 """
 
@@ -27,8 +27,8 @@ from pathlib import Path
 from ..system import IS_MAC, run_cmd_sync
 
 SOURCE_DIR = Path(__file__).resolve().parent.parent / "macos_helper"
-APP_NAME = "NetApp Wi-Fi Helper.app"
-EXECUTABLE = "netapp-wifi-helper"
+APP_NAME = "Subnetry Wi-Fi Helper.app"
+EXECUTABLE = "subnetry-wifi-helper"
 BAND = {1: "2.4 GHz", 2: "5 GHz", 3: "6 GHz"}
 
 INSTALL_TOOLS = ("Install Apple's free command-line developer tools with `xcode-select --install` "
@@ -40,7 +40,7 @@ class HelperUnavailable(RuntimeError):
 
 
 def support_dir() -> Path:
-    return Path(os.environ.get("NETAPP_SUPPORT_DIR") or Path.home() / "Library" / "Application Support" / "NetApp")
+    return Path(os.environ.get("SUBNETRY_SUPPORT_DIR") or Path.home() / "Library" / "Application Support" / "Subnetry")
 
 
 def app_path() -> Path:
@@ -78,7 +78,7 @@ def ensure_built() -> Path:
         swiftc = _find_swiftc()
         if not swiftc:
             raise HelperUnavailable("Building the Wi-Fi helper needs Apple's Swift compiler. " + INSTALL_TOOLS)
-        build_root = Path(tempfile.mkdtemp(prefix="netapp-helper-"))
+        build_root = Path(tempfile.mkdtemp(prefix="subnetry-helper-"))
         try:
             staged = build_root / APP_NAME
             (staged / "Contents" / "MacOS").mkdir(parents=True)
@@ -112,7 +112,7 @@ def _open_args(app: Path, mode: str, *args: str, background: bool = True) -> lis
 def call(mode: str, timeout: float = 30, background: bool = True) -> dict:
     """Run the helper once and return the JSON it wrote."""
     app = ensure_built()
-    fd, out = tempfile.mkstemp(prefix="netapp-wifi-", suffix=".json")
+    fd, out = tempfile.mkstemp(prefix="subnetry-wifi-", suffix=".json")
     os.close(fd)
     os.remove(out)
     try:
@@ -202,7 +202,7 @@ class MonitorStream:
 
     def __init__(self, interval: float) -> None:
         app = ensure_built()
-        tmp = Path(tempfile.mkdtemp(prefix="netapp-wifi-monitor-"))
+        tmp = Path(tempfile.mkdtemp(prefix="subnetry-wifi-monitor-"))
         self.out = tmp / "samples.jsonl"
         self.stop_file = tmp / "stop"
         self._dir = tmp

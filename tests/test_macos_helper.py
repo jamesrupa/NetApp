@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from netapp.tools import macos, macos_helper, wifimonitor, wifiscan
+from subnetry.tools import macos, macos_helper, wifimonitor, wifiscan
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="fake tools are shebang scripts")
 
@@ -71,7 +71,7 @@ def fake_mac(tmp_path, monkeypatch):
         json.dump(result, open(out, "w"))
         """)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setenv("NETAPP_SUPPORT_DIR", str(tmp_path / "support"))
+    monkeypatch.setenv("SUBNETRY_SUPPORT_DIR", str(tmp_path / "support"))
     monkeypatch.setattr(macos_helper, "IS_MAC", True)
     monkeypatch.setattr(wifimonitor, "IS_MAC", True)
     monkeypatch.setattr(macos, "_on_mac", lambda: True)

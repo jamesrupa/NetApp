@@ -34,7 +34,7 @@ PROFILES = {
 }
 
 INSTALL_HELP = {
-    "Windows": "Download the installer from https://nmap.org/download.html (it includes Npcap), then restart NetApp.",
+    "Windows": "Download the installer from https://nmap.org/download.html (it includes Npcap), then restart Subnetry.",
     "Darwin": "Install with Homebrew: `brew install nmap` (or the installer from https://nmap.org/download.html).",
     "Linux": "Install from your package manager, e.g. `sudo apt install nmap` or `sudo dnf install nmap`.",
 }
@@ -217,7 +217,7 @@ async def run_scan(
         raise ScanError("Nmap is not installed. " + status()["install_help"])
     t = await asyncio.to_thread(check_target, target, authorized)
     target = t.value
-    fd, xml_path = tempfile.mkstemp(suffix=".xml", prefix="netapp-nmap-")
+    fd, xml_path = tempfile.mkstemp(suffix=".xml", prefix="subnetry-nmap-")
     os.close(fd)
     args = build_args(nmap, target, profile, os_detect, scripts, xml_path, skip_ping=t.public and t.single)
     started = time.perf_counter()
@@ -235,7 +235,7 @@ async def run_scan(
             elif kind == "exit" and line != 0:
                 msg = " ".join(errors) or f"nmap exited with code {line}"
                 if "root privileges" in msg or "requires root" in msg:
-                    msg += " Run NetApp as administrator/root, or untick OS detection."
+                    msg += " Run Subnetry as administrator/root, or untick OS detection."
                 raise ScanError(msg)
         with open(xml_path, encoding="utf-8") as f:
             result = parse_xml(f.read())

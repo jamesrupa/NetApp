@@ -1,4 +1,4 @@
-# NetApp: Network Analysis & Diagnostic Toolkit
+# Subnetry: Network Analysis & Diagnostic Toolkit
 
 A local network toolkit you run on your own computer and use from your browser.
 It is a small Python server (FastAPI) and a plain HTML/JS dashboard. The server
@@ -26,27 +26,27 @@ Requires **Python 3.10+**.
 python -m venv .venv
 # Windows: .venv\Scripts\activate     macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-python -m netapp
+python -m subnetry
 ```
 
 Your browser opens at <http://localhost:8765>. Options: `--port 9000` and `--no-browser`.
 `--host 0.0.0.0` exposes the dashboard to other machines on your network, so use it with care.
 
-You can also run `pip install -e .` to get a `netapp` command.
+You can also run `pip install -e .` to get a `subnetry` command.
 
 ### Desktop app
 
 ```bash
-python -m netapp --app            # open NetApp in its own window instead of a browser tab
-python -m netapp --install-app    # add a NetApp launcher with its icon
-python -m netapp --uninstall-app  # remove the launcher again
+python -m subnetry --app            # open Subnetry in its own window instead of a browser tab
+python -m subnetry --install-app    # add a Subnetry launcher with its icon
+python -m subnetry --uninstall-app  # remove the launcher again
 ```
 
-`--install-app` creates **NetApp.app** in `~/Applications` on macOS (open it from Launchpad or Spotlight and drag it to
+`--install-app` creates **Subnetry.app** in `~/Applications` on macOS (open it from Launchpad or Spotlight and drag it to
 the Dock), Desktop and Start-menu shortcuts on Windows, or an app-menu entry on Linux. The launcher uses the Python
 environment you ran it from, so `git pull` updates the app too. The window uses `pywebview` (installed by
 `requirements.txt` on macOS and Windows; on Linux also install GTK WebKit). Logs from the macOS app go to
-`~/Library/Logs/NetApp.log`.
+`~/Library/Logs/Subnetry.log`.
 
 ### Platform notes
 
@@ -60,21 +60,21 @@ None of the built-in tools need admin/root rights. The two optional external too
 
 | Tool | Install | Notes |
 |---|---|---|
-| **Speedtest.net CLI** (Speed Test) | macOS: `brew tap teamookla/speedtest`, `brew trust teamookla/speedtest` (newer Homebrew), then `brew install speedtest --force` · Windows: `winget install Ookla.Speedtest.CLI` · Linux: [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) | Use Ookla's official CLI, not the unrelated Python `speedtest-cli`. NetApp tells them apart. Running a test accepts Ookla's EULA and privacy policy. |
+| **Speedtest.net CLI** (Speed Test) | macOS: `brew tap teamookla/speedtest`, `brew trust teamookla/speedtest` (newer Homebrew), then `brew install speedtest --force` · Windows: `winget install Ookla.Speedtest.CLI` · Linux: [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) | Use Ookla's official CLI, not the unrelated Python `speedtest-cli`. Subnetry tells them apart. Running a test accepts Ookla's EULA and privacy policy. |
 | **Nmap** (Port Scanner) | Windows/macOS: [nmap.org/download](https://nmap.org/download.html) · macOS: `brew install nmap` · Linux: `sudo apt install nmap` | Works without admin (TCP connect scan). OS detection needs admin/root. |
 | **Wireshark / tshark** (Traffic Analyzer) | [wireshark.org/download](https://www.wireshark.org/download.html). Windows: keep **Npcap** and **TShark** ticked. Linux: `sudo apt install tshark` | Capture permissions: on macOS run Wireshark's "Install ChmodBPF" package; on Linux `sudo usermod -aG wireshark $USER` and log in again. |
 
-NetApp detects both automatically and shows install instructions in the app if they're missing.
+Subnetry detects both automatically and shows install instructions in the app if they're missing.
 
 **Wi-Fi Monitor** uses `iw` or `nmcli` on Linux and `netsh` on Windows.
 
 **macOS Wi-Fi names:** since macOS 14, Wi-Fi network names and access-point IDs are only shown to apps with
-Location Services permission, and macOS won't keep that permission for Homebrew's Python. So on first use NetApp
-builds a tiny helper app, **NetApp Wi-Fi Helper** (Swift source in `netapp/macos_helper/`). It's compiled with
+Location Services permission, and macOS won't keep that permission for Homebrew's Python. So on first use Subnetry
+builds a tiny helper app, **Subnetry Wi-Fi Helper** (Swift source in `subnetry/macos_helper/`). It's compiled with
 Apple's command-line tools (`xcode-select --install` if they're missing), ad-hoc signed, and stored in
-`~/Library/Application Support/NetApp/`. Press **Allow location access** in the Wi-Fi Scanner, choose Allow when macOS
+`~/Library/Application Support/Subnetry/`. Press **Allow location access** in the Wi-Fi Scanner, choose Allow when macOS
 asks, and the names appear. You can review this any time under System Settings › Privacy & Security ›
-Location Services › NetApp Wi-Fi Helper.
+Location Services › Subnetry Wi-Fi Helper.
 
 **What the Traffic Analyzer can see:** on Wi-Fi and switched networks a computer sees its own traffic plus
 broadcast/multicast from other devices. Seeing every device needs a mirror/SPAN port, a Wi-Fi adapter in monitor
@@ -99,16 +99,16 @@ When a scan finishes you get:
   2.4 GHz, upgrading WPA/TKIP or open Wi-Fi, disabling Telnet/FTP/RDP/VNC on devices, enabling HTTPS for the
   router admin page, and reviewing UPnP.
 - **Exports**: an HTML report (prints neatly to PDF), JSON, and CSVs of recommendations, devices and Wi-Fi networks.
-  **Full scans are saved automatically** to `~/NetApp-Reports/`. Change the folder with `--reports-dir`.
+  **Full scans are saved automatically** to `~/Subnetry-Reports/`. Change the folder with `--reports-dir`.
 
-The rules live in `netapp/tools/advisor.py`. Each rule is a small, plain function, so it's easy to tune the
+The rules live in `subnetry/tools/advisor.py`. Each rule is a small, plain function, so it's easy to tune the
 thresholds or add new checks.
 
 ## How it works
 
 ```
-netapp/
-  __main__.py        # launcher: `python -m netapp`
+subnetry/
+  __main__.py        # launcher: `python -m subnetry`
   server.py          # FastAPI routes; long tasks stream Server-Sent Events
   system.py          # cross-platform command runner
   tools/
@@ -124,7 +124,7 @@ netapp/
     nmapscan.py      # Nmap runner, progress parsing, XML results
     wifimonitor.py   # live connection sampling, roam & sticky-client detection
     macos.py         # macOS Location permission + CoreWLAN fallbacks
-    macos_helper.py  # builds/drives the "NetApp Wi-Fi Helper" app (Swift source in netapp/macos_helper/)
+    macos_helper.py  # builds/drives the "Subnetry Wi-Fi Helper" app (Swift source in subnetry/macos_helper/)
     dashboard.py     # remembered "last results" + live latency/Wi-Fi stream for the home screen
   desktop_app.py     # native window (pywebview) and the --install-app launcher
   desktop/           # app icons (.icns / .ico / .png), built by scripts/build_icons.py
@@ -159,7 +159,7 @@ pytest
 
 ### Adding a new tool
 
-1. Write the logic in `netapp/tools/<tool>.py`. Keep it free of web code so it is easy to test.
+1. Write the logic in `subnetry/tools/<tool>.py`. Keep it free of web code so it is easy to test.
 2. Add a route in `server.py`. Return JSON for quick results, or `sse(async_generator)` for a live stream.
 3. Add a sidebar button and a `<section id="tab-<name>">` in `static/index.html`. Put its logic in a new
    `static/<name>.js`, included before `main.js`. Register `loaders.<name>` if the tab should load data when opened.

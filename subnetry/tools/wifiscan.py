@@ -261,7 +261,7 @@ def parse_system_profiler(data: dict) -> list[dict]:
 
 
 async def _scan_mac() -> list[dict]:
-    # 1. The NetApp Wi-Fi Helper app: the only reliable way to keep Location permission (and so see names).
+    # 1. The Subnetry Wi-Fi Helper app: the only reliable way to keep Location permission (and so see names).
     from . import macos_helper
     try:
         nets, _auth = await asyncio.to_thread(macos_helper.scan)

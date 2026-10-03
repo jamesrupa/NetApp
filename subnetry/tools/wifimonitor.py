@@ -265,7 +265,7 @@ def same_network_aps(nets: list[dict], c: dict | None) -> list[dict]:
 # --- the monitor loop ---------------------------------------------------------------
 
 class _MacHelperSampler:
-    """On macOS, one long-running NetApp Wi-Fi Helper reports the connection (with names, given permission)."""
+    """On macOS, one long-running Subnetry Wi-Fi Helper reports the connection (with names, given permission)."""
 
     def __init__(self, stream) -> None:
         self.stream = stream

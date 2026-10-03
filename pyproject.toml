@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "netapp"
+name = "subnetry"
 version = "0.1.0"
 description = "Local network analysis & diagnostic toolkit: speed test, network scanner, Wi-Fi scanner."
 readme = "README.md"
@@ -19,13 +19,13 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-netapp = "netapp.__main__:main"
+subnetry = "subnetry.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["netapp*"]
+include = ["subnetry*"]
 
 [tool.setuptools.package-data]
-netapp = ["static/*", "static/brand/*", "macos_helper/*", "desktop/*"]
+subnetry = ["static/*", "static/brand/*", "macos_helper/*", "desktop/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

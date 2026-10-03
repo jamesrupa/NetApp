@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>com.netapp.wifihelper</string>
+	<string>com.subnetry.wifihelper</string>
 	<key>CFBundleName</key>
-	<string>NetApp Wi-Fi Helper</string>
+	<string>Subnetry Wi-Fi Helper</string>
 	<key>CFBundleDisplayName</key>
-	<string>NetApp Wi-Fi Helper</string>
+	<string>Subnetry Wi-Fi Helper</string>
 	<key>CFBundleExecutable</key>
-	<string>netapp-wifi-helper</string>
+	<string>subnetry-wifi-helper</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,8 +21,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSLocationUsageDescription</key>
-	<string>macOS only shows Wi-Fi network names and access-point IDs to apps with Location access. NetApp uses this to analyse your Wi-Fi; your location itself is never used or stored.</string>
+	<string>macOS only shows Wi-Fi network names and access-point IDs to apps with Location access. Subnetry uses this to analyse your Wi-Fi; your location itself is never used or stored.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>macOS only shows Wi-Fi network names and access-point IDs to apps with Location access. NetApp uses this to analyse your Wi-Fi; your location itself is never used or stored.</string>
+	<string>macOS only shows Wi-Fi network names and access-point IDs to apps with Location access. Subnetry uses this to analyse your Wi-Fi; your location itself is never used or stored.</string>
 </dict>
 </plist>

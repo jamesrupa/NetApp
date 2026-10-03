@@ -16,7 +16,7 @@ IS_LINUX = OS == "Linux"
 # Subprocesses run in a dedicated thread pool instead of asyncio's subprocess API:
 # it behaves the same under every event loop (uvicorn on Windows included) and lets
 # a network sweep run many pings in parallel.
-_executor = ThreadPoolExecutor(max_workers=64, thread_name_prefix="netapp-cmd")
+_executor = ThreadPoolExecutor(max_workers=64, thread_name_prefix="subnetry-cmd")
 
 
 @dataclass

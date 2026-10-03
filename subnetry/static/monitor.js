@@ -245,7 +245,7 @@ $("#mon-export").addEventListener("click", () => {
   const csv = [cols.join(","), ...mon.samples.map((s) => cols.map((c) => cell(c === "location" ? s.loc : s[c])).join(","))].join("\n");
   const a = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
-    download: `netapp-wifi-monitor-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`,
+    download: `subnetry-wifi-monitor-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`,
   });
   a.click();
   URL.revokeObjectURL(a.href);

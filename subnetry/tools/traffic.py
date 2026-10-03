@@ -36,16 +36,16 @@ BENIGN_STDERR = re.compile(r"^(Capturing on|Running as user|\d+ packets? (captur
 
 INSTALL_HELP = {
     "Windows": "Install Wireshark from https://www.wireshark.org/download.html and keep the "
-               "\"Npcap\" and \"TShark\" options ticked, then restart NetApp.",
+               "\"Npcap\" and \"TShark\" options ticked, then restart Subnetry.",
     "Darwin": "Install Wireshark from https://www.wireshark.org/download.html (or `brew install --cask wireshark`) "
               "and run the included \"Install ChmodBPF\" package so captures work without sudo.",
     "Linux": "Install with `sudo apt install tshark` (answer Yes to letting non-root users capture), then "
              "`sudo usermod -aG wireshark $USER` and log out/in.",
 }
 PERMISSION_HELP = {
-    "Windows": "Npcap may be missing or restricted to administrators. Reinstall Wireshark with Npcap, or run NetApp as administrator.",
-    "Darwin": "Run the \"Install ChmodBPF\" package that ships with Wireshark, then restart NetApp.",
-    "Linux": "Add yourself to the wireshark group (`sudo usermod -aG wireshark $USER`, then log out/in), or run NetApp with sudo.",
+    "Windows": "Npcap may be missing or restricted to administrators. Reinstall Wireshark with Npcap, or run Subnetry as administrator.",
+    "Darwin": "Run the \"Install ChmodBPF\" package that ships with Wireshark, then restart Subnetry.",
+    "Linux": "Add yourself to the wireshark group (`sudo usermod -aG wireshark $USER`, then log out/in), or run Subnetry with sudo.",
 }
 
 # Friendly names for what tshark reports in frame.protocols (highest layer wins).
@@ -356,7 +356,7 @@ async def capture(
     pcap_path = None
     if save:
         captures_dir().mkdir(parents=True, exist_ok=True)
-        pcap_path = captures_dir() / f"netapp-capture-{datetime.now():%Y%m%d-%H%M%S}.pcapng"
+        pcap_path = captures_dir() / f"subnetry-capture-{datetime.now():%Y%m%d-%H%M%S}.pcapng"
         args += ["-w", str(pcap_path), "-P"]
 
     analyzer = TrafficAnalyzer()

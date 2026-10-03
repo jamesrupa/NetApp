@@ -3,12 +3,12 @@ import json
 
 from fastapi.testclient import TestClient
 
-from netapp import server
-from netapp.tools import dashboard
+from subnetry import server
+from subnetry.tools import dashboard
 
 
 def test_state_round_trip(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
     dashboard.record_speed({"download_mbps": 296.0, "upload_mbps": 20.8, "latency_ms": 11, "jitter_ms": 0.5,
                             "engine": "Speedtest.net (Ookla)", "phase": "done", "type": "result"})
     dashboard.record_devices("192.168.1.0/24", 7)
@@ -23,8 +23,8 @@ def test_state_round_trip(tmp_path, monkeypatch):
 
 
 def test_corrupt_state_is_ignored(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
-    (tmp_path / ".netapp-state.json").write_text("{not json")
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
+    (tmp_path / ".subnetry-state.json").write_text("{not json")
     assert dashboard.load_state() == {}
     dashboard.record_devices("10.0.0.0/24", 3)
     assert dashboard.load_state()["devices"]["count"] == 3
@@ -65,7 +65,7 @@ def test_live_stream(monkeypatch):
 
 
 def test_dashboard_endpoint_and_speed_recording(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETAPP_REPORTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBNETRY_REPORTS_DIR", str(tmp_path))
 
     async def fake_run(*_a, **_k):
         yield {"phase": "done", "type": "result", "download_mbps": 100.0, "upload_mbps": 10.0, "latency_ms": 9.0, "jitter_ms": 1.0}
@@ -76,3 +76,15 @@ def test_dashboard_endpoint_and_speed_recording(tmp_path, monkeypatch):
     data = client.get("/api/dashboard").json()
     assert {"hostname", "local_ip", "gateway", "last"} <= data.keys()
     assert data["last"]["speed"]["download_mbps"] == 100.0
+
+
+def test_reports_folder_moves_from_old_name(tmp_path, monkeypatch):
+    from subnetry.tools import report
+    monkeypatch.delenv("SUBNETRY_REPORTS_DIR", raising=False)
+    monkeypatch.delenv("NETAPP_REPORTS_DIR", raising=False)
+    monkeypatch.setattr(report.Path, "home", lambda: tmp_path)
+    old = tmp_path / "NetApp-Reports"
+    old.mkdir()
+    (old / ".netapp-state.json").write_text('{"devices": {"count": 5}}')
+    assert report.reports_dir() == tmp_path / "Subnetry-Reports" and not old.exists()
+    assert dashboard.load_state()["devices"]["count"] == 5  # state saved under the old file name still loads

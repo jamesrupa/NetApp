@@ -22,7 +22,7 @@ from .tools import dashboard, diagnose, ipinfo, macos, netinfo, netscan, nmapsca
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="NetApp", version=__version__)
+app = FastAPI(title="Subnetry", version=__version__)
 
 
 @app.middleware("http")
@@ -183,7 +183,7 @@ async def traffic_capture(
 
 @app.get("/api/traffic/captures/{name}")
 async def traffic_download(name: str):
-    if not re.fullmatch(r"netapp-capture-[\d-]+\.pcapng", name):
+    if not re.fullmatch(r"subnetry-capture-[\d-]+\.pcapng", name):
         raise HTTPException(400, "Invalid capture name.")
     path = traffic.captures_dir() / name
     if not path.is_file():

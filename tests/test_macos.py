@@ -2,8 +2,8 @@ import asyncio
 
 from fastapi.testclient import TestClient
 
-from netapp import server
-from netapp.tools import macos, wifiscan
+from subnetry import server
+from subnetry.tools import macos, wifiscan
 
 
 class FakeChannel:
@@ -18,7 +18,7 @@ class FakeChannel:
 
 
 class FakeNet:
-    """Mimics the CWNetwork methods NetApp uses."""
+    """Mimics the CWNetwork methods Subnetry uses."""
 
     def __init__(self, ssid, bssid, rssi, channel, band, security_codes=(4,), noise=-92):
         self._ssid, self._bssid, self._rssi, self._noise = ssid, bssid, rssi, noise

@@ -1,11 +1,11 @@
-// NetApp Wi-Fi Helper: a tiny macOS app that reads Wi-Fi details for NetApp.
+// Subnetry Wi-Fi Helper: a tiny macOS app that reads Wi-Fi details for Subnetry.
 //
 // macOS (14+) only reveals Wi-Fi network names (SSIDs) and access-point IDs (BSSIDs)
 // to a proper app bundle that has Location Services permission. A plain command-line
-// Python process can't keep that permission, so NetApp builds this helper on the Mac,
+// Python process can't keep that permission, so Subnetry builds this helper on the Mac,
 // launches it with `open`, and reads the JSON it writes.
 //
-// Usage (arguments after `open -a "NetApp Wi-Fi Helper.app" --args`):
+// Usage (arguments after `open -a "Subnetry Wi-Fi Helper.app" --args`):
 //   status  <out.json>                         authorization status only
 //   auth    <out.json>                         ask for Location access (shows the system prompt)
 //   scan    <out.json>                         nearby networks + current connection
@@ -127,7 +127,7 @@ NSApplication.shared.setActivationPolicy(.accessory)
 
 let args = CommandLine.arguments
 guard args.count >= 3 else {
-    FileHandle.standardError.write("usage: netapp-wifi-helper <status|auth|scan|current|monitor> <out> [...]\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: subnetry-wifi-helper <status|auth|scan|current|monitor> <out> [...]\n".data(using: .utf8)!)
     exit(2)
 }
 let mode = args[1]
@@ -171,7 +171,7 @@ case "monitor":
     let parentPid: pid_t = args.count > 5 ? pid_t(args[5]) ?? 0 : 0
     let started = Date()
     while !FileManager.default.fileExists(atPath: stopFile) && Date().timeIntervalSince(started) < 7200 {
-        if parentPid > 0 && kill(parentPid, 0) != 0 { break }  // NetApp went away
+        if parentPid > 0 && kill(parentPid, 0) != 0 { break }  // Subnetry went away
         var line: [String: Any] = ["t": Date().timeIntervalSince(started), "auth": auth.statusName]
         if let cur = currentInfo(iface) { line["current"] = cur }
         write(line, to: out, append: true)

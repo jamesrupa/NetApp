@@ -27,14 +27,16 @@ _lock = threading.Lock()
 # --- remembered results ---------------------------------------------------------------
 
 def state_path() -> Path:
-    return reports_dir() / ".netapp-state.json"
+    return reports_dir() / ".subnetry-state.json"
 
 
 def load_state() -> dict:
-    try:
-        return json.loads(state_path().read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    for path in (state_path(), reports_dir() / ".netapp-state.json"):  # (second: saved under the old name)
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    return {}
 
 
 def record(key: str, data: dict) -> None:

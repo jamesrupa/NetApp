@@ -1,6 +1,6 @@
-"""Render the NetApp icon SVG to PNGs and pack them into .icns (macOS) and .ico (Windows).
+"""Render the Subnetry icon SVG to PNGs and pack them into .icns (macOS) and .ico (Windows).
 
-Developer tool, not needed to run NetApp: the generated files are committed.
+Developer tool, not needed to run Subnetry: the generated files are committed.
 Requires Playwright with Chromium:  python scripts/build_icons.py
 """
 
@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SVG = ROOT / "netapp" / "static" / "brand" / "icon.svg"
-OUT = ROOT / "netapp" / "desktop"
-STATIC = ROOT / "netapp" / "static" / "brand"
+SVG = ROOT / "subnetry" / "static" / "brand" / "icon.svg"
+OUT = ROOT / "subnetry" / "desktop"
+STATIC = ROOT / "subnetry" / "static" / "brand"
 
 # ICNS entry types holding PNG data, by pixel size (macOS picks the right one for each display).
 ICNS_TYPES = [(b"icp4", 16), (b"icp5", 32), (b"icp6", 64), (b"ic07", 128), (b"ic08", 256), (b"ic09", 512),
@@ -61,13 +61,13 @@ def main() -> None:
     sizes = {s for _, s in ICNS_TYPES} | set(ICO_SIZES) | {180, 192}
     pngs = render(sizes)
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "NetApp.icns").write_bytes(build_icns(pngs))
-    (OUT / "NetApp.ico").write_bytes(build_ico(pngs))
-    (OUT / "NetApp.png").write_bytes(pngs[512])
+    (OUT / "Subnetry.icns").write_bytes(build_icns(pngs))
+    (OUT / "Subnetry.ico").write_bytes(build_ico(pngs))
+    (OUT / "Subnetry.png").write_bytes(pngs[512])
     (STATIC / "icon-192.png").write_bytes(pngs[192])
     (STATIC / "apple-touch-icon.png").write_bytes(pngs[180])
     (STATIC / "favicon-32.png").write_bytes(pngs[32])
-    print("wrote", ", ".join(str(p.relative_to(ROOT)) for p in [OUT / "NetApp.icns", OUT / "NetApp.ico", OUT / "NetApp.png"]))
+    print("wrote", ", ".join(str(p.relative_to(ROOT)) for p in [OUT / "Subnetry.icns", OUT / "Subnetry.ico", OUT / "Subnetry.png"]))
 
 
 if __name__ == "__main__":
