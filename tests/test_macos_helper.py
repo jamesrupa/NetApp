@@ -104,6 +104,44 @@ def test_rosetta_python_builds_natively(fake_mac):
     assert fake_mac["builds"].read_text() == "x"
 
 
+def test_sdk_mismatch_falls_back_to_an_older_sdk(fake_mac, monkeypatch, tmp_path):
+    """A compiler older than the default SDK fails; retrying with an installed older SDK works."""
+    sdks = tmp_path / "SDKs"
+    for name in ("MacOSX15.4.sdk", "MacOSX26.sdk", "MacOSX15.sdk"):
+        (sdks / name).mkdir(parents=True)
+    (sdks / "MacOSX.sdk").symlink_to(sdks / "MacOSX26.sdk")
+    monkeypatch.setattr(macos_helper, "CLT_SDKS", sdks)
+    assert [p.rsplit("/", 1)[-1] for p in macos_helper._sdk_candidates()] == ["MacOSX26.sdk", "MacOSX15.4.sdk", "MacOSX15.sdk"]
+    tried = tmp_path / "tried.txt"
+    write_tool(fake_mac["tmp"] / "bin" / "swiftc", f"""
+        import sys, pathlib
+        sdk = sys.argv[sys.argv.index("-sdk") + 1] if "-sdk" in sys.argv else "default"
+        with open({str(tried)!r}, "a") as f: f.write(pathlib.Path(sdk).name + "\\n")
+        if not sdk.endswith("MacOSX15.4.sdk"):
+            sys.stderr.write("<unknown>:0: error: failed to build module 'Swift'; this SDK is not supported by the compiler\\n"
+                             + "-enable-experimental-feature X " * 200)
+            sys.exit(1)
+        out = sys.argv[sys.argv.index("-o") + 1]
+        pathlib.Path(out).write_text("binary")
+        """)
+    assert macos_helper.ensure_built().is_dir()
+    assert tried.read_text().split() == ["default", "MacOSX26.sdk", "MacOSX15.4.sdk"]
+
+
+def test_compiler_errors_are_summarized(fake_mac, monkeypatch, tmp_path):
+    monkeypatch.setattr(macos_helper, "CLT_SDKS", tmp_path / "none")
+    write_tool(fake_mac["tmp"] / "bin" / "swiftc", """
+        import sys
+        sys.stderr.write("<unknown>:0: error: failed to build module 'Swift'; this SDK is not supported by the compiler\\n"
+                         + "-enable-experimental-feature X " * 200)
+        sys.exit(1)
+        """)
+    with pytest.raises(macos_helper.HelperUnavailable) as exc:
+        macos_helper.ensure_built()
+    msg = str(exc.value)
+    assert "this SDK is not supported" in msg and "experimental-feature" not in msg and "Software Update" in msg
+
+
 def test_native_python_builds_directly(fake_mac):
     write_tool(fake_mac["tmp"] / "bin" / "sysctl", "print('0')\n")
     assert macos_helper._native_prefix() == []

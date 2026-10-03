@@ -24,7 +24,7 @@ import threading
 import time
 from pathlib import Path
 
-from ..system import IS_MAC, run_cmd_sync
+from ..system import IS_MAC, CmdResult, run_cmd_sync
 
 SOURCE_DIR = Path(__file__).resolve().parent.parent / "macos_helper"
 APP_NAME = "Subnetry Wi-Fi Helper.app"
@@ -75,6 +75,48 @@ def _native_prefix() -> list[str]:
     return ["arch", "-arm64"] if res and res.ok and res.stdout.strip() == "1" else []
 
 
+COMPILER_MISMATCH = ("This usually means Apple's command-line tools are out of step with macOS. Update them in "
+                     "System Settings > General > Software Update, or reinstall them with "
+                     "`sudo rm -rf /Library/Developer/CommandLineTools` and then `xcode-select --install`.")
+CLT_SDKS = Path("/Library/Developer/CommandLineTools/SDKs")
+
+
+def _sdk_candidates() -> list[str]:
+    """Versioned macOS SDKs, newest first (MacOSX.sdk is just a link to one of them)."""
+    def version(p: Path) -> tuple:
+        digits = p.name.removeprefix("MacOSX").removesuffix(".sdk")
+        return tuple(int(x) for x in digits.split(".") if x.isdigit())
+    try:
+        sdks = [p for p in CLT_SDKS.glob("MacOSX*.sdk") if p.name != "MacOSX.sdk" and not p.is_symlink()]
+    except OSError:
+        return []
+    return [str(p) for p in sorted(sdks, key=version, reverse=True)]
+
+
+def _error_summary(text: str) -> str:
+    """The compiler's "error:" lines, not the end of a 5 KB command line."""
+    errors = list(dict.fromkeys(line.strip() for line in (text or "").splitlines() if "error:" in line))
+    return " ".join(errors[:3])[:600] if errors else (text or "swiftc did not run").strip()[-600:]
+
+
+def _compile(swiftc: str, output: Path) -> CmdResult:
+    """Compile the helper with the default SDK; if that fails, retry with each installed SDK.
+
+    A compiler that's older than the default SDK can't read that SDK's Swift modules
+    ("this SDK is not supported by the compiler"), but an older SDK alongside it usually works.
+    """
+    base = [*_native_prefix(), swiftc, "-O", str(SOURCE_DIR / "WiFiHelper.swift"), "-o", str(output),
+            "-framework", "CoreWLAN", "-framework", "CoreLocation", "-framework", "AppKit"]
+    first = res = run_cmd_sync(base, timeout=300)
+    for sdk in _sdk_candidates():
+        if res and res.ok:
+            break
+        res = run_cmd_sync([*base, "-sdk", sdk], timeout=300)
+    if res and res.ok:
+        return res
+    return first or CmdResult(1, "", "swiftc did not run")  # report the default SDK's error
+
+
 def ensure_built() -> Path:
     """Return the helper app, compiling it first if it's missing or its source changed."""
     if not IS_MAC:
@@ -93,13 +135,10 @@ def ensure_built() -> Path:
             staged = build_root / APP_NAME
             (staged / "Contents" / "MacOS").mkdir(parents=True)
             shutil.copy(SOURCE_DIR / "Info.plist", staged / "Contents" / "Info.plist")
-            res = run_cmd_sync([*_native_prefix(), swiftc, "-O", str(SOURCE_DIR / "WiFiHelper.swift"),
-                                "-o", str(staged / "Contents" / "MacOS" / EXECUTABLE),
-                                "-framework", "CoreWLAN", "-framework", "CoreLocation", "-framework", "AppKit"],
-                               timeout=300)
-            if not res or not res.ok:
-                detail = (res.stderr or res.stdout).strip()[-800:] if res else "swiftc did not run"
-                raise HelperUnavailable(f"Couldn't build the Wi-Fi helper: {detail}")
+            res = _compile(swiftc, staged / "Contents" / "MacOS" / EXECUTABLE)
+            if not res.ok:
+                raise HelperUnavailable(f"Couldn't build the Wi-Fi helper: {_error_summary(res.stderr or res.stdout)} "
+                                        + COMPILER_MISMATCH)
             # Ad-hoc signature: gives the app a stable identity so macOS remembers its permission.
             sign = run_cmd_sync(["codesign", "--force", "--deep", "--sign", "-", str(staged)], timeout=60)
             if not sign or not sign.ok:
