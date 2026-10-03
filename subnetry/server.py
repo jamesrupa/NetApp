@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .tools import dashboard, diagnose, ipinfo, macos, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
+from .tools import dashboard, diagnose, dnsinfo, ipinfo, macos, macvendor, portref, subnetcalc, netinfo, netscan, nmapscan, ookla, report, speedtest, traffic, wifimonitor, wifiscan
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -72,6 +72,64 @@ async def dashboard_summary():
 @app.get("/api/dashboard/live")
 async def dashboard_live(interval: float = Query(2.0, ge=1, le=30)):
     return sse(dashboard.live(interval=interval))
+
+
+# --- Toolkit: subnet calculator, MAC vendors, port reference, DNS ---------------------------
+
+@app.get("/api/subnet")
+async def subnet(q: str, split_prefix: int | None = None):
+    try:
+        result = subnetcalc.calculate(q)
+        if split_prefix is not None:
+            result["split"] = subnetcalc.split(q, split_prefix)
+        return result
+    except subnetcalc.SubnetError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/subnet/summarize")
+async def subnet_summarize(q: str):
+    try:
+        return subnetcalc.summarize(q)
+    except subnetcalc.SubnetError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/mac")
+async def mac_lookup(q: str):
+    return await asyncio.to_thread(macvendor.lookup, q)
+
+
+@app.get("/api/mac/status")
+async def mac_status():
+    return await asyncio.to_thread(macvendor.status)
+
+
+@app.post("/api/mac/update")
+async def mac_update():
+    try:
+        return await macvendor.update_from_ieee()
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.get("/api/portref")
+async def port_reference(q: str = "", category: str = ""):
+    return {"ports": portref.search(q, category), "categories": portref.CATEGORIES, "ranges": portref.RANGES,
+            "total": len(portref.PORTS)}
+
+
+@app.get("/api/dns")
+async def dns_lookup(q: str, resolver: str = Query("system", pattern="^(system|cloudflare|google|quad9)$")):
+    try:
+        return await dnsinfo.lookup(q, resolver)
+    except dnsinfo.DnsError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/dns/explainers")
+async def dns_explainers():
+    return {"explainers": dnsinfo.EXPLAINERS, "resolvers": {k: v[0] for k, v in dnsinfo.RESOLVERS.items()}}
 
 
 @app.get("/api/speedtest")

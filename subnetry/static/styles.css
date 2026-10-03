@@ -585,3 +585,74 @@ tr.row-new td { animation: row-in .5s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* --- Toolkit: subnet, MAC, ports, DNS ------------------------------------------------------- */
+.top-gap-sm { margin-top: 8px; }
+textarea {
+  font: 13px/1.5 var(--mono); color: var(--text-primary); background: var(--bg);
+  border: 1px solid var(--border-strong); border-radius: 4px; padding: 7px 10px; width: 100%; resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+#sn-input, #dns-q { width: 240px; }
+#pr-q { width: 200px; }
+#mac-input { width: 300px; min-height: 38px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-self: center; }
+.chip {
+  font: 12px var(--mono); color: var(--text-secondary); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; cursor: pointer;
+}
+.chip:hover { color: var(--accent); border-color: var(--accent); }
+.scroll-y { max-height: 340px; overflow-y: auto; }
+.scroll-y.tall { max-height: 460px; }
+tr.hl td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+.binary { display: grid; gap: 8px; margin: 8px 0; overflow-x: auto; }
+.bin-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.bin-row .mono { font-size: 15px; letter-spacing: .06em; white-space: nowrap; }
+.bin-row .sub { display: inline; }
+.bin-label { width: 90px; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.bit-net { color: var(--accent); }
+.bit-host { color: var(--warning); }
+.key.bit-net { background: var(--accent); }
+.key.bit-host { background: var(--warning); }
+.bin-dot { color: var(--text-muted); }
+
+.mac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.mac-card { margin: 0; }
+.mac-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mac-addr { font-size: 15px; font-weight: 600; margin-right: 4px; }
+.mac-vendor { font-size: 19px; font-weight: 650; margin: 8px 0 2px; overflow-wrap: anywhere; }
+.mac-diagram { display: flex; gap: 4px; margin: 8px 0 14px; }
+.mac-part { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 6px; border: 1px solid; }
+.mac-part .mono { font-size: 18px; }
+.mac-part small { color: var(--text-muted); }
+.mac-part.oui { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.mac-part.dev { border-color: var(--warning); color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, transparent); }
+.explain-list { margin: 0; padding-left: 18px; color: var(--text-secondary); display: grid; gap: 6px; }
+.explain-list b { color: var(--text-primary); }
+
+.port-note { margin-top: 3px; }
+
+.dns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+.dns-grid .card { margin: 0; }
+.dns-rec { padding: 8px 0; border-top: 1px solid var(--border); }
+.dns-rec:first-of-type { border-top: 0; }
+.dns-val { overflow-wrap: anywhere; color: var(--text-primary); }
+.dns-exp { color: var(--text-secondary); font-size: 13px; margin-top: 3px; }
+.spf-terms { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); display: grid; gap: 3px; }
+.spf-terms code { color: var(--accent); overflow-wrap: anywhere; }
+#dns-findings h2 { margin-top: 4px; }
+.explainers { display: grid; gap: 8px; }
+.explainer { background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
+.explainer summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.explainer summary .sub { flex-basis: 100%; font-size: 13px; }
+.explainer[open] { border-color: var(--accent); }
+.explainer pre { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; overflow-x: auto; margin: 10px 0 6px; }
+.explainer p { margin: 0; color: var(--text-secondary); }
+@media (max-width: 640px) {
+  #sn-input, #dns-q, #pr-q, #mac-input { width: 100%; }
+  .toolbar label:has(#sn-input), .toolbar label:has(#dns-q), .toolbar label:has(#mac-input), .toolbar label:has(#pr-q) { flex-basis: 100%; }
+  .mac-diagram { flex-direction: column; }
+  .bin-row .mono { font-size: 12px; }
+}
+.grid-2 > *, .explainers > *, .dns-grid > * { min-width: 0; }

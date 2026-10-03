@@ -11,12 +11,16 @@ for nearby Wi-Fi networks. The dashboard shows the results live.
 | **Health Check** | One-click **Quick scan** (speed test) or **Full scan** (speed test, Wi-Fi signal and channel analysis, device discovery and an open-port security check). Ends with a health score and a prioritized list of recommended changes. Results export as HTML/JSON/CSV. |
 | **Overview** | Hostname, local IP, default gateway, DNS servers, public IP and every network interface. |
 | **Speed Test** | Ping, jitter, download, upload and packet loss using the official **Speedtest.net (Ookla) CLI**, with a server picker and a shareable result link. Falls back to Cloudflare's speed-test endpoints when the CLI isn't installed. Live throughput chart. |
-| **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC (flags private/randomized MACs), response time and a device-type guess (printer, NAS, camera, TV…). Devices with a web interface (router, printer, NAS) get a clickable IP that opens it in your browser. Can also run a common-ports scan on each device. |
+| **Network Scanner** | Sweeps your LAN for devices using ICMP ping, TCP probes and the ARP table. Shows IP, hostname, MAC with its manufacturer (and flags private/randomized MACs), response time and a device-type guess (printer, NAS, camera, TV…). Devices with a web interface (router, printer, NAS) get a clickable IP that opens it in your browser. Can also run a common-ports scan on each device. |
 | **Public IP** | Your public IPv4/IPv6 address, ISP, ASN, approximate location, time zone and reverse DNS. Can also look up any other public IP. |
 | **Port Scanner (Nmap)** | Runs [Nmap](https://nmap.org) with ready-made profiles (host discovery, top 100, top 1000 + versions, all ports) and optional OS detection and default scripts. Works on LAN ranges, **public IPs and hostnames** (public targets need you to confirm you own them or have permission; up to a /24). Shows live progress, per-device ports, software versions, MAC vendors, OS guesses and web-interface links, with the same security recommendations as the Health Check. |
 | **Wi-Fi Monitor** | Live signal graph colored by access point, with a signal dial beside it. Catches roaming between APs and mesh nodes, disconnects, and "sticky" connections that cling to a weak AP while a much stronger one is nearby. Mark locations as you walk around to build a weak-spot survey, and export samples as CSV. |
 | **Traffic Analyzer** | Live packet capture with Wireshark's engine (tshark), explained in plain English: protocol mix, busiest devices, which sites and services were contacted (from DNS and TLS names), a live activity feed and warnings such as unencrypted logins. Can save a `.pcapng` to open in Wireshark. |
 | **Wi-Fi Scanner** | Nearby access points with SSID, BSSID, signal (dBm and quality), channel, band and security. Channel-usage charts for **2.4, 5 and 6 GHz**, the quietest channel per band, and whether you should change the channel your own network uses. |
+| **Subnet Calculator** | Network, broadcast, usable range, host count, netmask and wildcard for any IPv4 or IPv6 address (accepts `/24`, `255.255.255.0` and Cisco wildcard masks). Shows the network and host bits in binary, splits a network into smaller subnets, summarizes a list of networks into the fewest CIDR blocks, and has a /8–/32 cheat sheet. |
+| **MAC Vendor Lookup** | Who made a device, from its MAC address (one or many at once). Works offline from Nmap's vendor list, or download the official IEEE registry (including the smaller MA-M/MA-S blocks). Explains private/randomized, multicast and broadcast addresses. The Network Scanner uses it too. |
+| **Port Reference** | About 100 common ports: what uses them, whether they're encrypted and how risky they are to leave open, with search and filters. |
+| **DNS Lookup** | A, AAAA, CNAME, MX, NS, TXT, SOA, CAA and HTTPS records (or reverse DNS for an IP) from your own DNS or Cloudflare/Google/Quad9, each explained in plain English. Decodes SPF and DMARC term by term, looks for DKIM keys, flags email-security gaps, and has explainers for every record type. |
 
 ## Quick start
 
@@ -126,9 +130,13 @@ subnetry/
     macos.py         # macOS Location permission + CoreWLAN fallbacks
     macos_helper.py  # builds/drives the "Subnetry Wi-Fi Helper" app (Swift source in subnetry/macos_helper/)
     dashboard.py     # remembered "last results" + live latency/Wi-Fi stream for the home screen
+    traffic.py       # tshark capture + plain-English traffic analysis
+    subnetcalc.py    # subnet / CIDR maths (ipaddress), splitting and summarizing
+    macvendor.py     # OUI vendor database (Nmap list or IEEE registry download)
+    portref.py       # common-port reference data
+    dnsinfo.py       # DNS lookups (dnspython), record explanations, SPF/DMARC parsing
   desktop_app.py     # native window (pywebview) and the --install-app launcher
   desktop/           # app icons (.icns / .ico / .png), built by scripts/build_icons.py
-    traffic.py       # tshark capture + plain-English traffic analysis
   static/            # index.html, styles.css, app.js + one script per tool (no build step)
 tests/               # parser tests with sample OS output, speed-test & API tests
 ```
@@ -140,6 +148,10 @@ Some background on the techniques used:
   Probing an address also makes your OS ARP for it, so any IP that ends up in the ARP table answered at layer 2.
 - **Randomized MACs**: if the second-lowest bit of the first byte is set (the "locally administered" bit),
   the MAC was made up by the device for privacy, as modern phones and laptops do.
+- **MAC vendors**: the first 24 bits of a MAC (the OUI) are assigned to a manufacturer by the IEEE. Some
+  manufacturers buy smaller 28- or 36-bit blocks instead, so the longest matching prefix wins.
+- **DNS lookups** ask for EDNS so large TXT answers fit in one UDP packet. A query that times out is reported as
+  "couldn't load", never as "missing", so a slow resolver can't produce a false "No SPF record" warning.
 - **Speed test**: several parallel HTTP streams fill the pipe. The first second is ignored (TCP slow start),
   and the result is the average of 250 ms samples after that.
 - **Channel recommendations** score each candidate channel by the nearby networks that overlap it, weighted by
@@ -169,13 +181,11 @@ pytest
 
 - Ping / traceroute with a latency graph
 - Heat-map floor plan for the Wi-Fi survey
-- DNS lookup and DNS server benchmark
-- Continuous Wi-Fi signal monitor (for walking around to find dead zones)
+- DNS server benchmark
 - Scan history with trends over time (compare reports)
 - Scheduled scans
-- Subnet / CIDR calculator
 - Service banner grabbing and mDNS/SSDP device discovery
-- Packaging as a desktop app (e.g. pywebview or PyInstaller)
+- A standalone installer (PyInstaller) that doesn't need Python
 
 ## Responsible use
 

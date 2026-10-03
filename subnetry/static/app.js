@@ -148,6 +148,10 @@ const ICONS = {
   wifi: '<path d="M1.5 6a9.5 9.5 0 0 1 13 0M3.8 8.6a6.2 6.2 0 0 1 8.4 0M6 11.1a3 3 0 0 1 4 0"/><circle cx="8" cy="13.2" r=".6"/>',
   monitor: '<path d="M1.5 9h2.5l1.5-4 2.5 7 2-5 1.2 2h3.3"/>',
   traffic: '<path d="M5 13V3M5 3L2.5 5.5M5 3l2.5 2.5M11 3v10M11 13l-2.5-2.5M11 13l2.5-2.5"/>',
+  subnet: '<rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2 8h12M8 2v12"/>',
+  mac: '<rect x="3" y="4" width="10" height="8" rx="1"/><path d="M5 4V2.5M8 4V2.5M11 4V2.5M5 13.5V12M8 13.5V12M11 13.5V12"/>',
+  portref: '<path d="M3 2.5h7l3 3v8H3z"/><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"/>',
+  dns: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2 2 2 9 0 11"/><path d="M10.5 10.5l3 3"/>',
 };
 document.querySelectorAll(".tabs button").forEach((b) => {
   if (ICONS[b.dataset.tab]) {
@@ -598,14 +602,23 @@ function webUrls(ip, ports) {
 }
 
 /** A best guess at what a device is from its open ports (shown as a badge). */
-function deviceKind(ports) {
+function deviceKind(ports, vendor = "") {
   const open = new Set(ports);
+  const v = (vendor || "").toLowerCase();
   if (open.has(9100) || open.has(631) || open.has(515)) return "Printer";
   if (open.has(554)) return "Camera";
   if (open.has(8008) || open.has(8009)) return "Chromecast / TV";
   if (open.has(62078)) return "Apple device";
   if (open.has(3389) || open.has(135)) return "Windows PC";
   if (open.has(5001)) return "NAS";
+  // Fall back to the manufacturer (from the MAC address).
+  if (/brother|epson|canon|lexmark|kyocera|xerox|hewlett packard(?! enterprise)|hp inc/.test(v)) return "Printer";
+  if (/raspberry/.test(v)) return "Raspberry Pi";
+  if (/synology|qnap/.test(v)) return "NAS";
+  if (/espressif|tuya|shelly|wiz iot|signify|philips lighting|ecobee|nest/.test(v)) return "Smart home";
+  if (/sonos|roku|amazon|google/.test(v)) return "Media / speaker";
+  if (/ubiquiti|tp-link|netgear|cisco|aruba|ruckus|eero|mikrotik|asustek/.test(v)) return "Network gear";
+  if (/apple/.test(v)) return "Apple device";
   return null;
 }
 
@@ -620,11 +633,11 @@ function renderHosts() {
     const tags = [h.is_gateway && "Gateway", h.is_self && "This device"].filter(Boolean)
       .map((t) => `<span class="badge accent">${t}</span>`).join("");
     const mac = h.mac
-      ? `${esc(h.mac)}${h.mac_randomized ? `<span class="sub">Private / randomized MAC</span>` : ""}`
+      ? `${esc(h.mac)}${h.vendor ? `<span class="sub">${esc(h.vendor)}</span>` : ""}${h.mac_randomized ? `<span class="sub">Private / randomized MAC</span>` : ""}`
       : "–";
     const portList = h.ports ? h.ports.open.map((p) => p.port) : (h.open_ports || []);
     const urls = webUrls(h.ip, portList);
-    const kind = deviceKind(portList);
+    const kind = deviceKind(portList, h.vendor);
     const web = urls.length ? `<div class="web-links">${urls.map((u) => openLink(u, `Open :${u.port}`)).join("")}</div>` : "";
     const ports = h.ports
       ? (h.ports.open.length ? h.ports.open.map((p) => `<span class="badge" title="${esc(p.service)}">${p.port} ${esc(p.service)}</span>`).join("") : `<span class="sub">No common ports open</span>`) + web

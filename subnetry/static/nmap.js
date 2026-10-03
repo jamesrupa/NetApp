@@ -63,7 +63,7 @@ function renderNmapResult(r) {
       : `<p class="sub">No open ports found in the scanned range.</p>`;
     const tcpOpen = h.ports.filter((p) => p.protocol === "tcp" && p.state === "open").map((p) => p.port);
     const urls = webUrls(h.ip, tcpOpen);
-    const kind = deviceKind(tcpOpen);
+    const kind = deviceKind(tcpOpen, h.vendor);
     const title = urls.length
       ? `<a class="ip-link" href="${esc(urls[0].url)}" target="_blank" rel="noopener noreferrer" title="Open its web interface">${esc(h.ip)} ↗</a>`
       : esc(h.ip);

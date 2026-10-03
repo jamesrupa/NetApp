@@ -50,6 +50,11 @@
       <button role="tab" data-tab="monitor">Wi-Fi Monitor</button>
       <div class="nav-group">Traffic</div>
       <button role="tab" data-tab="traffic">Traffic Analyzer</button>
+      <div class="nav-group">Toolkit</div>
+      <button role="tab" data-tab="subnet">Subnet Calculator</button>
+      <button role="tab" data-tab="mac">MAC Vendor Lookup</button>
+      <button role="tab" data-tab="portref">Port Reference</button>
+      <button role="tab" data-tab="dns">DNS Lookup</button>
     </nav>
   </aside>
 
@@ -403,6 +408,129 @@
         <ul class="feed" id="tr-feed"><li class="sub">Nothing captured yet.</li></ul>
       </div>
     </section>
+
+    <!-- Subnet calculator ---------------------------------------------------------->
+    <section id="tab-subnet" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Subnet Calculator</h1>
+          <p class="muted">Work out network ranges, masks and host counts for IPv4 and IPv6, then split or combine networks.</p>
+        </div>
+      </div>
+      <form class="toolbar" id="sn-form">
+        <label>Address / prefix <input id="sn-input" placeholder="192.168.1.10/24" spellcheck="false" value="192.168.1.10/24"></label>
+        <button class="btn primary" type="submit">Calculate</button>
+        <span class="chips" id="sn-examples">
+          <button type="button" class="chip" data-ex="192.168.1.10/24">Home /24</button>
+          <button type="button" class="chip" data-ex="10.20.30.40 255.255.252.0">Mask form</button>
+          <button type="button" class="chip" data-ex="172.16.5.9/30">/30 link</button>
+          <button type="button" class="chip" data-ex="10.0.0.0/8">10.0.0.0/8</button>
+          <button type="button" class="chip" data-ex="2001:db8:abcd::1/48">IPv6 /48</button>
+        </span>
+      </form>
+      <p class="status" id="sn-status"></p>
+      <div class="tiles" id="sn-tiles"></div>
+      <div class="card" id="sn-binary-card" hidden>
+        <div class="card-head"><h2>In binary</h2><div class="legend"><span><i class="key bit-net"></i>Network bits</span><span><i class="key bit-host"></i>Host bits</span></div></div>
+        <div class="binary" id="sn-binary"></div>
+        <p class="sub" id="sn-binary-note"></p>
+      </div>
+      <div class="grid-2 top-gap">
+        <div class="card">
+          <div class="card-head"><h2>Split into subnets</h2></div>
+          <form class="toolbar" id="sn-split-form">
+            <label>New prefix <select id="sn-split-prefix"></select></label>
+            <button class="btn" type="submit">Split</button>
+          </form>
+          <p class="sub" id="sn-split-note"></p>
+          <div class="table-wrap flat scroll-y"><table><thead><tr><th>Subnet</th><th>Usable range</th><th>Broadcast</th><th class="num">Hosts</th></tr></thead>
+          <tbody id="sn-split-rows"><tr><td colspan="4" class="empty">Calculate a network, then pick a smaller prefix.</td></tr></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Summarize networks</h2></div>
+          <form id="sn-sum-form">
+            <textarea id="sn-sum-input" rows="4" spellcheck="false" placeholder="192.168.0.0/24&#10;192.168.1.0/24&#10;192.168.2.0/24"></textarea>
+            <button class="btn top-gap-sm" type="submit">Summarize</button>
+          </form>
+          <div id="sn-sum-result" class="sub top-gap-sm">Combine routes or firewall rules into the fewest CIDR blocks.</div>
+        </div>
+      </div>
+      <h2>Cheat sheet</h2>
+      <div class="table-wrap scroll-y tall"><table><thead><tr><th>Prefix</th><th>Netmask</th><th>Wildcard</th><th class="num">Addresses</th><th class="num">Usable hosts</th><th>Typical use</th></tr></thead>
+      <tbody id="sn-cheat"></tbody></table></div>
+    </section>
+
+    <!-- MAC vendor lookup ----------------------------------------------------------->
+    <section id="tab-mac" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>MAC Vendor Lookup</h1>
+          <p class="muted">Find out who made a network device from its MAC (hardware) address.</p>
+        </div>
+      </div>
+      <form class="toolbar" id="mac-form">
+        <label>MAC address(es) <textarea id="mac-input" rows="2" spellcheck="false" placeholder="3C:22:FB:12:34:56&#10;b8-27-eb-00-11-22"></textarea></label>
+        <button class="btn primary" type="submit">Look up</button>
+        <button class="btn" type="button" id="mac-update" title="Download the official IEEE registry (about 6 MB)">Update vendor database</button>
+      </form>
+      <p class="status" id="mac-status"></p>
+      <div id="mac-results"></div>
+      <div class="card">
+        <div class="card-head"><h2>How a MAC address works</h2></div>
+        <div class="mac-diagram">
+          <div class="mac-part oui"><span class="mono">3C:22:FB</span><b>Vendor (OUI)</b><small>Assigned to the manufacturer by the IEEE</small></div>
+          <div class="mac-part dev"><span class="mono">12:34:56</span><b>Device</b><small>Chosen by the manufacturer for each unit</small></div>
+        </div>
+        <ul class="explain-list">
+          <li><b>Second-lowest bit of the first byte (U/L):</b> when it's 1 the address was made up by the device rather than burned in.
+            Phones and laptops do this for privacy ("private Wi-Fi address"), so these have no vendor. Quick check: the 2nd hex digit is 2, 6, A or E.</li>
+          <li><b>Lowest bit of the first byte (I/G):</b> 1 means multicast (a group of devices), e.g. 01:00:5E:… for IPv4 multicast.</li>
+          <li><b>FF:FF:FF:FF:FF:FF</b> is broadcast: every device on the local network receives it.</li>
+          <li>Big vendors own many prefixes, and some sell sub-blocks (MA-M 28-bit, MA-S 36-bit) to small companies.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Port reference ------------------------------------------------------------------>
+    <section id="tab-portref" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>Port Reference</h1>
+          <p class="muted">What common ports are used for, whether they're encrypted, and what to watch out for.</p>
+        </div>
+      </div>
+      <form class="toolbar" id="pr-form">
+        <label>Search <input id="pr-q" placeholder="443, ssh, printer…" spellcheck="false"></label>
+        <label>Category <select id="pr-cat"><option value="">All categories</option></select></label>
+        <label>Show <select id="pr-risk"><option value="">Everything</option><option value="risky">Risky only</option><option value="caution">Caution + risky</option></select></label>
+      </form>
+      <div class="tiles" id="pr-ranges"></div>
+      <p class="status" id="pr-count"></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th class="num">Port</th><th>Proto</th><th>Service</th><th>What it's for</th><th>Encrypted</th><th>Risk</th></tr></thead>
+        <tbody id="pr-rows"></tbody>
+      </table></div>
+    </section>
+
+    <!-- DNS lookup ------------------------------------------------------------------------->
+    <section id="tab-dns" class="panel" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h1>DNS Lookup</h1>
+          <p class="muted">Look up a domain's DNS records and see what each one means, including email security (SPF, DKIM, DMARC).</p>
+        </div>
+      </div>
+      <form class="toolbar" id="dns-form">
+        <label>Domain or IP <input id="dns-q" placeholder="example.com" spellcheck="false"></label>
+        <label>Ask <select id="dns-resolver"></select></label>
+        <button class="btn primary" type="submit">Look up</button>
+      </form>
+      <div class="status-row"><span id="dns-radar"></span><p class="status" id="dns-status">Enter a domain (or an IP address for reverse DNS).</p></div>
+      <div id="dns-findings"></div>
+      <div id="dns-results"></div>
+      <h2>Record types explained</h2>
+      <div class="explainers" id="dns-explainers"></div>
+    </section>
   </main>
   </div>
 
@@ -413,6 +541,7 @@
   <script src="/static/monitor.js"></script>
   <script src="/static/traffic.js"></script>
   <script src="/static/dashboard.js"></script>
+  <script src="/static/toolkit.js"></script>
   <script src="/static/main.js"></script>
 </body>
 </html>

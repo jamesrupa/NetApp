@@ -19,6 +19,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from ..system import IS_LINUX, IS_MAC, IS_WINDOWS, run_blocking, run_cmd, safe_concurrency
+from . import macvendor
 from .netinfo import default_gateway, local_networks
 
 MAX_HOSTS = 1024  # refuse anything bigger than a /22
@@ -234,6 +235,7 @@ async def scan_network(
                              "hostname": await reverse_dns(ip)})
             found[ip] = host
         host["mac"] = mac
+        host["vendor"] = macvendor.vendor_for(mac)
         host["mac_randomized"] = is_randomized_mac(mac)
         if "arp" not in host["methods"]:
             host["methods"].append("arp")
