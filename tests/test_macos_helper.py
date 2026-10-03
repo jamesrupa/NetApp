@@ -89,6 +89,26 @@ def test_build_once_and_rebuild_on_source_change(fake_mac, monkeypatch):
     assert fake_mac["builds"].read_text() == "xx"
 
 
+def test_rosetta_python_builds_natively(fake_mac):
+    """Under Rosetta, swiftc must be started with `arch -arm64` (its build libraries are arm64-only)."""
+    bin_dir = fake_mac["tmp"] / "bin"
+    calls = fake_mac["tmp"] / "arch.txt"
+    write_tool(bin_dir / "sysctl", "print('1')\n")
+    write_tool(bin_dir / "arch", f"""
+        import sys, os
+        open({str(calls)!r}, "w").write(" ".join(sys.argv[1:3]))
+        os.execv(sys.argv[2], sys.argv[2:])
+        """)
+    macos_helper.ensure_built()
+    assert calls.read_text() == f"-arm64 {bin_dir / 'swiftc'}"
+    assert fake_mac["builds"].read_text() == "x"
+
+
+def test_native_python_builds_directly(fake_mac):
+    write_tool(fake_mac["tmp"] / "bin" / "sysctl", "print('0')\n")
+    assert macos_helper._native_prefix() == []
+
+
 def test_missing_compiler_is_explained(fake_mac, monkeypatch):
     monkeypatch.setattr(macos_helper, "_find_swiftc", lambda: None)
     with pytest.raises(macos_helper.HelperUnavailable, match="xcode-select --install"):

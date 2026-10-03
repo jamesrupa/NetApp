@@ -76,7 +76,8 @@ Subnetry detects both automatically and shows install instructions in the app if
 Location Services permission, and macOS won't keep that permission for Homebrew's Python. So on first use Subnetry
 builds a tiny helper app, **Subnetry Wi-Fi Helper** (Swift source in `subnetry/macos_helper/`). It's compiled with
 Apple's command-line tools (`xcode-select --install` if they're missing), ad-hoc signed, and stored in
-`~/Library/Application Support/Subnetry/`. Press **Allow location access** in the Wi-Fi Scanner, choose Allow when macOS
+`~/Library/Application Support/Subnetry/` (if your Python is an Intel build running under Rosetta, the compiler is still
+run natively on Apple Silicon). Press **Allow location access** in the Wi-Fi Scanner, choose Allow when macOS
 asks, and the names appear. You can review this any time under System Settings › Privacy & Security ›
 Location Services › Subnetry Wi-Fi Helper.
 

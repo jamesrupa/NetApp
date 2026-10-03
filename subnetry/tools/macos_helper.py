@@ -65,6 +65,16 @@ def _find_swiftc() -> str | None:
     return res.stdout.strip() if res and res.ok and res.stdout.strip() else None
 
 
+def _native_prefix() -> list[str]:
+    """["arch", "-arm64"] when this Python runs under Rosetta on an Apple Silicon Mac.
+
+    Child processes inherit Rosetta, so swiftc would start as x86_64 and fail to load its
+    arm64-only build libraries ("incompatible architecture (have 'arm64', need 'x86_64')").
+    """
+    res = run_cmd_sync(["sysctl", "-n", "sysctl.proc_translated"], timeout=10)
+    return ["arch", "-arm64"] if res and res.ok and res.stdout.strip() == "1" else []
+
+
 def ensure_built() -> Path:
     """Return the helper app, compiling it first if it's missing or its source changed."""
     if not IS_MAC:
@@ -83,7 +93,7 @@ def ensure_built() -> Path:
             staged = build_root / APP_NAME
             (staged / "Contents" / "MacOS").mkdir(parents=True)
             shutil.copy(SOURCE_DIR / "Info.plist", staged / "Contents" / "Info.plist")
-            res = run_cmd_sync([swiftc, "-O", str(SOURCE_DIR / "WiFiHelper.swift"),
+            res = run_cmd_sync([*_native_prefix(), swiftc, "-O", str(SOURCE_DIR / "WiFiHelper.swift"),
                                 "-o", str(staged / "Contents" / "MacOS" / EXECUTABLE),
                                 "-framework", "CoreWLAN", "-framework", "CoreLocation", "-framework", "AppKit"],
                                timeout=300)
